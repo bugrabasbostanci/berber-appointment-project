@@ -14,7 +14,7 @@ export async function signUpWithEmail(data: RegisterFormValues) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: `${window.location.origin}/callback`,
     },
   })
 
@@ -40,7 +40,7 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: `${window.location.origin}callback`,
     },
   })
 
@@ -59,7 +59,7 @@ export async function sendPasswordResetEmail(data: ForgotPasswordValues) {
   const { email } = data
 
   const { data: userData, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`,
+    redirectTo: `${window.location.origin}/reset-password`,
   })
 
   if (error) throw error

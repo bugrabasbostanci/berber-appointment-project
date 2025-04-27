@@ -1,48 +1,41 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { createClient } from "@/lib/supabase/middleware"
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
+export async function middleware(request: NextRequest) {
+ // -- GELİŞTİRME ORTAMINDA middleware’i tamamen pas geç
+ if (process.env.NODE_ENV === "development") {
+  return NextResponse.next()
+}
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => req.cookies.get(name)?.value,
-        set: (name: string, value: string, options: CookieOptions) => {
-          res.cookies.set({ name, value, ...options })
-        },
-        remove: (name: string, options: CookieOptions) => {
-          res.cookies.set({ name, value: '', ...options })
-        },
-      },
-    }
-  )
+  const { supabase, response } = createClient(request)
 
-  const { data: { session } } = await supabase.auth.getSession()
+  // Kullanıcı oturum bilgisini al
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
   // Korumalı rotalar için kontrol
-  if (req.nextUrl.pathname.startsWith("/dashboard") && !session) {
-    return NextResponse.redirect(new URL("/auth/login", req.url))
+  const protectedRoutes = ["/dashboard"]
+  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+
+  // Auth sayfaları için kontrol
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"]
+  const isAuthRoute = authRoutes.some((route) => request.nextUrl.pathname === route)
+
+  // Korumalı rotaya erişim kontrolü
+  if (isProtectedRoute && !session) {
+    return NextResponse.redirect(new URL("/unauthorized", request.url))
   }
 
-  // Kullanıcı giriş yapmışsa auth sayfalarına erişimi engelle
-  if (
-    (req.nextUrl.pathname.startsWith("/auth/login") || req.nextUrl.pathname.startsWith("/auth/register")) &&
-    session
-  ) {
-    // Kullanıcı rolüne göre yönlendirme
-    const { data: { user } } = await supabase.auth.getUser()
-    const userRole = user?.user_metadata?.role || "customer"
-
-    return NextResponse.redirect(new URL(`/dashboard/${userRole}`, req.url))
+  // Oturum açmış kullanıcı auth sayfalarına erişim kontrolü
+  if (isAuthRoute && session) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
-  return res
+  return response
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/auth/:path*"],
+  matcher: ["/dashboard/:path*", "/login", "/register", "/forgot-password", "/reset-password", "/unauthorized"],
 }

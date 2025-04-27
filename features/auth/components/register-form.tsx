@@ -50,7 +50,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
       })
 
       // Başarılı kayıt sonrası yönlendirme
-      // router.push("/auth/verify-email")
+      // router.push("/verify-email")
     } catch (error) {
       console.error("Kayıt hatası:", error)
       toast({
@@ -167,7 +167,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
 
             <div className="text-center text-sm">
               Zaten bir hesabınız var mı?{" "}
-              <Link href="/auth/login" className="underline underline-offset-4">
+              <Link href="/login" className="underline underline-offset-4">
                 Giriş yap
               </Link>
             </div>

@@ -29,7 +29,7 @@ export default function ResetPasswordPage({
                 <p className="mb-4 text-sm text-muted-foreground">
                   Şifre sıfırlama bağlantınız geçersiz veya süresi dolmuş olabilir.
                 </p>
-                <Link href="/auth/forgot-password" className="text-sm underline underline-offset-4">
+                <Link href="/forgot-password" className="text-sm underline underline-offset-4">
                   Yeni bir şifre sıfırlama bağlantısı talep edin
                 </Link>
               </div>

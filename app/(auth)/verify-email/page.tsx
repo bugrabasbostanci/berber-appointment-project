@@ -36,7 +36,7 @@ export default function VerifyEmailPage() {
               </CardContent>
               <CardFooter className="flex flex-col space-y-2">
                 <Button asChild className="w-full">
-                  <Link href="/auth/login">Giriş Sayfasına Dön</Link>
+                  <Link href="/login">Giriş Sayfasına Dön</Link>
                 </Button>
               </CardFooter>
             </Card>

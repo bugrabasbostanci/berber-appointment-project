@@ -121,7 +121,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
                     <FormItem>
                       <div className="flex items-center justify-between">
                         <FormLabel>Şifre</FormLabel>
-                        <Link href="/auth/forgot-password" className="text-sm underline-offset-4 hover:underline">
+                        <Link href="/forgot-password" className="text-sm underline-offset-4 hover:underline">
                           Şifrenizi mi unuttunuz?
                         </Link>
                       </div>
@@ -172,7 +172,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
             <div className="text-center text-sm">
               Hesabınız yok mu?{" "}
-              <Link href="/auth/register" className="underline underline-offset-4">
+              <Link href="/register" className="underline underline-offset-4">
                 Kayıt ol
               </Link>
             </div>

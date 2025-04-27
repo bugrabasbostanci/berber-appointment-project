@@ -142,12 +142,12 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
                 </Link>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href="/auth/login" onClick={closeSheet}>
+                  <Link href="/login" onClick={closeSheet}>
                     <Button variant="outline" className="w-full">
                       Giriş Yap
                     </Button>
                   </Link>
-                  <Link href="/auth/register" onClick={closeSheet}>
+                  <Link href="/register" onClick={closeSheet}>
                     <Button className="w-full">Kayıt Ol</Button>
                   </Link>
                 </div>

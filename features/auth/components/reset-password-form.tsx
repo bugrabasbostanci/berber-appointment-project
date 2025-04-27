@@ -54,7 +54,7 @@ export function ResetPasswordForm({
       })
 
       // Giriş sayfasına yönlendirme
-      router.push("/auth/login")
+      router.push("/login")
     } catch (error) {
       console.error("Şifre sıfırlama hatası:", error)
       toast({

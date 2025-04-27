@@ -241,9 +241,9 @@ function UserMenu() {
         onClick={() => setOpen(!open)}
         className="flex w-full cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent"
       >
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-violet-500 to-purple-700">
-          <Avatar className="h-full w-full">
-            <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden">
+          <Avatar className="h-full w-full rounded-md">
+            <AvatarImage src="/rick-8bit.webp?height=32&width=32" alt="User" />
             <AvatarFallback>MA</AvatarFallback>
           </Avatar>
         </div>

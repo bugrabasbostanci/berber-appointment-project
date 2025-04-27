@@ -31,12 +31,12 @@ export function UserAccountNav({ user }: UserAccountNavProps) {
   if (!user) {
     return (
       <div className="flex items-center gap-2">
-        <Link href="/auth/login">
+        <Link href="/login">
           <Button variant="outline" size="sm" className="hidden md:inline-flex">
             Giriş Yap
           </Button>
         </Link>
-        <Link href="/auth/register">
+        <Link href="/register">
           <Button size="sm">Kayıt Ol</Button>
         </Link>
       </div>

@@ -103,7 +103,7 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
           )}
 
           <div className="mt-4 text-center text-sm">
-            <Link href="/auth/login" className="underline underline-offset-4">
+            <Link href="/login" className="underline underline-offset-4">
               Giriş sayfasına dön
             </Link>
           </div>

@@ -24,7 +24,7 @@ export default function HomePage() {
                 zamanınızı verimli kullanın.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
-                <Link href="/auth/login">
+                <Link href="/login">
                   <Button size="lg" className="w-full sm:w-auto">
                     Randevu Al
                   </Button>

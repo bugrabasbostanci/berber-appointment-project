@@ -63,7 +63,7 @@ export default function ServicesPage() {
                   <p className="text-sm text-muted-foreground">{service.description}</p>
                 </CardContent>
                 <CardFooter className="p-4 pt-0 sm:p-6 sm:pt-0">
-                  <Link href="/auth/login">
+                  <Link href="/login">
                     <Button variant="outline" className="w-full">
                       Randevu Al
                     </Button>
@@ -71,12 +71,6 @@ export default function ServicesPage() {
                 </CardFooter>
               </Card>
             ))}
-          </div>
-
-          <div className="mt-8 text-center">
-            <Link href="/">
-              <Button variant="outline">Ana Sayfaya Dön</Button>
-            </Link>
           </div>
         </div>
       </main>

@@ -59,3 +59,21 @@ export async function createService(serviceData: {
     data: serviceData
   });
 }
+
+// Servis güncelleme
+export async function updateService(
+  id: string,
+  data: Prisma.ServiceUpdateInput
+): Promise<Service> {
+  return prisma.service.update({
+    where: { id },
+    data
+  });
+}
+
+// Servis silme
+export async function deleteService(id: string): Promise<Service> {
+  return prisma.service.delete({
+    where: { id }
+  });
+}

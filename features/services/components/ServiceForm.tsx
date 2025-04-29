@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Service } from "@prisma/client";
 
 type ServiceFormProps = {
+  service?: Service;
   onSuccess?: () => void;
 };
 
@@ -16,35 +18,50 @@ type FormValues = {
   description: string;
 };
 
-export function ServiceForm({ onSuccess }: ServiceFormProps) {
+export function ServiceForm({ service, onSuccess }: ServiceFormProps) {
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+    defaultValues: service ? {
+      name: service.name,
+      description: service.description || ""
+    } : {
+      name: "",
+      description: ""
+    }
+  });
 
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/services', {
-        method: 'POST',
+      const url = service ? `/api/services` : '/api/services';
+      const method = service ? 'PUT' : 'POST';
+      const body = service ? JSON.stringify({ id: service.id, ...data }) : JSON.stringify(data);
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body,
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Hizmet eklenirken bir hata oluştu');
+        throw new Error(error.error || `Hizmet ${service ? 'güncellenirken' : 'eklenirken'} bir hata oluştu`);
       }
 
-      toast.success('Hizmet başarıyla eklendi');
-      reset();
+      toast.success(`Hizmet başarıyla ${service ? 'güncellendi' : 'eklendi'}`);
+      
+      if (!service) {
+        reset();
+      }
       
       if (onSuccess) {
         onSuccess();
       }
     } catch (error) {
-      console.error('Hizmet eklenirken hata:', error);
-      toast.error((error as Error).message || 'Hizmet eklenirken bir hata oluştu');
+      console.error(`Hizmet ${service ? 'güncellenirken' : 'eklenirken'} hata:`, error);
+      toast.error((error as Error).message || `Hizmet ${service ? 'güncellenirken' : 'eklenirken'} bir hata oluştu`);
     } finally {
       setLoading(false);
     }
@@ -74,7 +91,7 @@ export function ServiceForm({ onSuccess }: ServiceFormProps) {
       </div>
 
       <Button type="submit" disabled={loading}>
-        {loading ? "Ekleniyor..." : "Hizmet Ekle"}
+        {loading ? (service ? "Güncelleniyor..." : "Ekleniyor...") : (service ? "Güncelle" : "Hizmet Ekle")}
       </Button>
     </form>
   );

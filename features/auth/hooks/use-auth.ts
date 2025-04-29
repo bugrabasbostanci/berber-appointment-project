@@ -1,4 +1,3 @@
-// features/auth/hooks/use-auth.ts
 "use client"
 
 import { useState, useEffect } from "react"
@@ -17,10 +16,22 @@ export const useAuth = () => {
         setUser(user)
 
         if (user?.id) {
-          const res = await fetch(`/api/users/${user.id}`)
-          if (res.ok) {
-            const data = await res.json()
-            setDbUser(data)
+          try {
+            const res = await fetch(`/api/users/${user.id}`)
+            if (res.ok) {
+              const data = await res.json()
+              setDbUser(data)
+            } else {
+              // Kullanıcı veritabanında bulunamadıysa yine de devam et
+              console.warn("Kullanıcı veritabanında bulunamadı, ancak oturum açık")
+              setDbUser({
+                id: user.id,
+                email: user.email,
+                role: user.user_metadata?.role || 'customer'
+              })
+            }
+          } catch (error) {
+            console.error("Kullanıcı verileri alınırken hata:", error)
           }
         }
       } catch (error) {

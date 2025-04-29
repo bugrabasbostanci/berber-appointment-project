@@ -9,23 +9,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  phone     String?
-  role      Role
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  id           String   @id // UUID formatında, Supabase ID'leri ile uyumlu
+  email        String   @unique
+  password     String   @default("")
+  phone        String?
+  role         Role     @default(customer)
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
 
   // İlişkiler
-  ownedShops       Shop[]          @relation("ShopOwner")
-  employeeInShops  Shop[]          @relation("ShopEmployee")
-  customerAppointments Appointment[] @relation("CustomerAppointment")
-  staffAppointments    Appointment[] @relation("StaffAppointment")
-  reviews           Review[]
-  availableTimes    AvailableTime[]
+  ownedShops          Shop[]          @relation("ShopOwner")
+  employeeInShops     Shop[]          @relation("ShopEmployee")
+  customerAppointments Appointment[]  @relation("CustomerAppointment")
+  staffAppointments   Appointment[]   @relation("StaffAppointment")
+  reviews             Review[]
+  availableTimes      AvailableTime[]
 
   @@map("users")
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllServices, countServices, createService } from '@/lib/services/serviceService';
+import { getAllServices, countServices, createService, getServiceById, updateService, deleteService } from '@/lib/services/serviceService';
 import { createClient } from '@/lib/supabase/server';
 import { getUserById } from '@/lib/services/userService';
 
@@ -93,3 +93,140 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// Hizmet güncelleme - PUT fonksiyonu
+export async function PUT(req: NextRequest) {
+  try {
+    // Kullanıcı oturumunu kontrol et
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Oturum açmanız gerekiyor' },
+        { status: 401 }
+      );
+    }
+
+    // Kullanıcı detaylarını getir
+    const currentUser = await getUserById(session.user.id);
+    
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Kullanıcı bulunamadı' },
+        { status: 404 }
+      );
+    }
+    
+    // Sadece admin rolündeki kullanıcılar global hizmet güncelleyebilir
+    if (currentUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Global hizmet güncelleme yetkisine sahip değilsiniz' },
+        { status: 403 }
+      );
+    }
+
+    // Gönderilen verileri al
+    const { id, ...serviceData } = await req.json();
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Hizmet ID gerekli' },
+        { status: 400 }
+      );
+    }
+
+    if (!serviceData.name) {
+      return NextResponse.json(
+        { error: 'Hizmet adı gerekli' },
+        { status: 400 }
+      );
+    }
+
+    // Hizmet mevcut mu kontrol et
+    const existingService = await getServiceById(id);
+    if (!existingService) {
+      return NextResponse.json(
+        { error: 'Hizmet bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    // Hizmeti güncelle
+    const updatedService = await updateService(id, serviceData);
+    
+    return NextResponse.json(updatedService);
+  } catch (error) {
+    console.error('Hizmet güncellenemedi:', error);
+    return NextResponse.json(
+      { error: 'Hizmet güncellenemedi' },
+      { status: 500 }
+    );
+  }
+}
+
+// Hizmet silme - DELETE fonksiyonu
+export async function DELETE(req: NextRequest) {
+  try {
+    // Kullanıcı oturumunu kontrol et
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Oturum açmanız gerekiyor' },
+        { status: 401 }
+      );
+    }
+
+    // Kullanıcı detaylarını getir
+    const currentUser = await getUserById(session.user.id);
+    
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Kullanıcı bulunamadı' },
+        { status: 404 }
+      );
+    }
+    
+    // Sadece admin rolündeki kullanıcılar global hizmet silebilir
+    if (currentUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Global hizmet silme yetkisine sahip değilsiniz' },
+        { status: 403 }
+      );
+    }
+
+    // URL'den servis ID'sini al
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Hizmet ID gerekli' },
+        { status: 400 }
+      );
+    }
+
+    // Hizmet mevcut mu kontrol et
+    const existingService = await getServiceById(id);
+    if (!existingService) {
+      return NextResponse.json(
+        { error: 'Hizmet bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    // Hizmeti sil
+    await deleteService(id);
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Hizmet silinemedi:', error);
+    return NextResponse.json(
+      { error: 'Hizmet silinemedi' },
+      { status: 500 }
+    );
+  }
+}
+

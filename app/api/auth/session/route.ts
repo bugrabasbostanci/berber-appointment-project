@@ -28,7 +28,6 @@ export async function GET(req: NextRequest) {
       
       if (existingUserByEmail) {
         // E-posta adresi ile kullanıcı varsa, Supabase ID'si ile ilişkilendir
-        // Bu özellik ileride geliştirilebilir, şimdilik basit tutuyoruz
         return NextResponse.json({
           user: existingUserByEmail,
           session
@@ -46,13 +45,13 @@ export async function GET(req: NextRequest) {
       
       // Kullanıcıyı veritabanında oluştur
       const newUser = await createUser({
+        id: session.user.id, // Önemli: Supabase user ID'sini kullan
         email: userEmail,
         role: userRole as Role,
         firstName: firstName || undefined,
         lastName: lastName || undefined,
         phone: userPhone || undefined,
-        // Şifre alanı Supabase tarafından yönetiliyor, boş bırakılabilir
-        password: ''
+        password: '' // Şifre alanı Supabase tarafından yönetiliyor
       })
       
       return NextResponse.json({

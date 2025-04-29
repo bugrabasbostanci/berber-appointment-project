@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserById, updateUser, deleteUser } from '@/lib/services/userService';
+import { getUserById, updateUser, deleteUser, createUser } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Kullanıcı bilgilerini getirme
 export async function GET(
@@ -35,23 +38,38 @@ export async function GET(
     }
 
     // Kullanıcı bilgilerini getir
-    const userDetails = await getUserById(userId);
+    let userDetails = await getUserById(userId);
     
-    // Kullanıcı bulunamadığında 404 yerine boş bir kullanıcı objesi döndür
+    // Kullanıcı bulunamadığında, Supabase Auth bilgilerinden bir kullanıcı oluştur
     if (!userDetails) {
-      // Default kullanıcı profil bilgileri - kayıt sırasında oluşturulmamış olabilir
-      return NextResponse.json({
-        id: userId,
-        email: user.email,
-        firstName: null,
-        lastName: null,
-        role: user.user_metadata?.role || 'CUSTOMER',
-        profileImage: null,
-        phone: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+      try {
+        userDetails = await prisma.user.create({
+          data: {
+            id: userId,
+            email: user.email || "",
+            role: user.user_metadata?.role || 'customer',
+            firstName: user.user_metadata?.firstName || null,
+            lastName: user.user_metadata?.lastName || null,
+            phone: user.user_metadata?.phone || null
+          }
+        });
+        console.log(`Yeni kullanıcı kaydı oluşturuldu: ${userId}`);
+      } catch (createError) {
+        console.error("Kullanıcı oluşturma hatası:", createError);
+        // Yine de temel kullanıcı bilgilerini döndür
+        return NextResponse.json({
+          id: userId,
+          email: user.email,
+          firstName: user.user_metadata?.firstName || null,
+          lastName: user.user_metadata?.lastName || null,
+          role: user.user_metadata?.role || 'customer',
+          profileImage: null,
+          phone: user.user_metadata?.phone || null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
     }
 
     // Hassas verileri temizle
@@ -108,13 +126,40 @@ export async function PATCH(
       ? { ...updateData, role, email } 
       : updateData;
     
-    // Kullanıcı bilgilerini güncelle
-    const updatedUser = await updateUser(userId, finalUpdateData);
+    // Kullanıcı veritabanında var mı kontrol et
+    let userDetails = await getUserById(userId);
+    let updatedUser;
     
+    // Kullanıcı bulunamadığında, önce oluştur
+    if (!userDetails) {
+      try {
+        userDetails = await prisma.user.create({
+          data: {
+            id: userId,
+            email: user.email || "",
+            role: user.user_metadata?.role || 'customer',
+            ...finalUpdateData
+          }
+        });
+        
+        updatedUser = userDetails;
+      } catch (createError) {
+        console.error("Kullanıcı oluşturma hatası:", createError);
+        return NextResponse.json(
+          { error: 'Kullanıcı profili oluşturulamadı' },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Kullanıcı varsa güncelle
+      updatedUser = await updateUser(userId, finalUpdateData);
+    }
+    
+    // İşlem sonucunu kontrol et
     if (!updatedUser) {
       return NextResponse.json(
         { error: 'Kullanıcı güncellenemedi' },
-        { status: 404 }
+        { status: 500 }
       );
     }
 

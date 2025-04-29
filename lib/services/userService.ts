@@ -3,15 +3,24 @@ import { prisma } from '../prisma';
 
 // Kullanıcı oluşturma
 export async function createUser(userData: {
+  id: string; // Supabase kullanıcı ID'si
   email: string;
-  password: string;
+  password?: string; // Opsiyonel olarak değiştir
   role: Role;
   firstName?: string;
   lastName?: string;
   phone?: string;
 }): Promise<User> {
   return prisma.user.create({
-    data: userData
+    data: {
+      id: userData.id, // Supabase ID'sini kullan
+      email: userData.email,
+      password: userData.password || '',
+      role: userData.role,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      phone: userData.phone
+    }
   });
 }
 

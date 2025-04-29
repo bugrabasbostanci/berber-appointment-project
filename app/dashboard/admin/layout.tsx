@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { BarChart3, Building2, Home, LogOut, Moon, PanelLeft, Scissors, Settings, Sun, User, Users } from "lucide-react"
+import { BarChart3, Building2, Home, LogOut, Moon, PanelLeft, Scissors, Settings, Sun, User, Users, BookOpen } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -54,9 +54,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               ? "Dükkanlar"
               : pathname === "/dashboard/admin/users"
                 ? "Kullanıcılar"
-                : pathname === "/dashboard/admin/settings"
-                  ? "Ayarlar"
-                  : "Admin Paneli"}
+                : pathname === "/dashboard/admin/services"
+                  ? "Hizmetler"
+                  : pathname === "/dashboard/admin/settings"
+                    ? "Ayarlar"
+                    : "Admin Paneli"}
         </h1>
       </header>
 
@@ -131,9 +133,11 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                   ? "Dükkanlar"
                   : pathname === "/dashboard/admin/users"
                     ? "Kullanıcılar"
-                    : pathname === "/dashboard/admin/settings"
-                      ? "Ayarlar"
-                      : "Admin Paneli"}
+                    : pathname === "/dashboard/admin/services"
+                      ? "Hizmetler"
+                      : pathname === "/dashboard/admin/settings"
+                        ? "Ayarlar"
+                        : "Admin Paneli"}
             </h1>
           </div>
 
@@ -174,6 +178,17 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
       >
         <Building2 className="h-5 w-5" />
         <span>Dükkanlar</span>
+      </Link>
+      <Link
+        href="/dashboard/admin/services"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/dashboard/admin/services"
+            ? "bg-accent text-accent-foreground"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          }`}
+        onClick={handleLinkClick}
+      >
+        <BookOpen className="h-5 w-5" />
+        <span>Hizmetler</span>
       </Link>
       <Link
         href="/dashboard/admin/users"

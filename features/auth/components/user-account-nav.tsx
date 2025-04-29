@@ -14,52 +14,47 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BadgeCheck, LogOut, Settings, User, LayoutDashboard } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "../providers/auth-provider"
 
-interface UserAccountNavProps {
-  user: {
-    name: string
-    email: string
-    image?: string
-    role: "customer" | "barber" | "employee" | "admin"
-  } | null
-}
-
-export function UserAccountNav({ user }: UserAccountNavProps) {
+export function UserAccountNav() {
+  const { user, dbUser } = useAuth()
+  const supabase = createClient()
   const pathname = usePathname()
-
-  // Kullanıcı giriş yapmamışsa, giriş ve kayıt butonlarını göster
-  if (!user) {
-    return (
-      <div className="flex items-center gap-2">
-        <Link href="/login">
-          <Button variant="outline" size="sm" className="hidden md:inline-flex">
-            Giriş Yap
-          </Button>
-        </Link>
-        <Link href="/register">
-          <Button size="sm">Kayıt Ol</Button>
-        </Link>
-      </div>
-    )
+  
+  // Kullanıcı oturumunu kapat
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
   }
-
-  // Kullanıcı rolüne göre dashboard URL'i
-  const dashboardUrl = `/dashboard/${user.role}`
-
-  // Kullanıcı adının baş harflerini al
-  const initials = user.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
+  
+  if (!user || !dbUser) {
+    return null
+  }
+  
+  // Google ile giriş yapan kullanıcıların display name bilgisini kullan
+  // Eğer yoksa veritabanındaki isim bilgisini kullan
+  const googleDisplayName = user.user_metadata?.full_name || user.user_metadata?.name
+  
+  // Kullanıcı adını formatla
+  const fullName = googleDisplayName || 
+    `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Kullanıcı'
+  
+  // İsim baş harflerini al
+  const initials = fullName
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
     .toUpperCase()
-    .substring(0, 2)
+  
+  // Kullanıcının dashboard'una doğru yönlendirme yap
+  const dashboardPath = `/dashboard/${dbUser.role.toLowerCase()}`
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user.image || ""} alt={user.name} />
+        <Button variant="ghost" className="relative h-10 w-10">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={dbUser.profileImage || ""} alt={fullName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -67,46 +62,37 @@ export function UserAccountNav({ user }: UserAccountNavProps) {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.name}</p>
+            <p className="text-sm font-medium leading-none">{fullName}</p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href={dashboardUrl}>
+            <Link href={dashboardPath}>
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href={`${dashboardUrl}/profile`}>
+            <Link href={`${dashboardPath}/profile`}>
               <User className="mr-2 h-4 w-4" />
               <span>Profil</span>
             </Link>
           </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href={`${dashboardUrl}/settings`}>
+            <Link href={`${dashboardPath}/settings`}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Ayarlar</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/appointments/new">
-              <BadgeCheck className="mr-2 h-4 w-4" />
-              <span>Randevu Al</span>
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/auth/logout">
+          <button onClick={handleSignOut} className="w-full">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Çıkış Yap</span>
-          </Link>
+          </button>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

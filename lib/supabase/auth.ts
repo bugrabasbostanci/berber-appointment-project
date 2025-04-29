@@ -1,10 +1,15 @@
-import { supabase } from "./client"
+import { createClient } from "./client"
+
 import type {
   LoginFormValues,
   RegisterFormValues,
   ForgotPasswordValues,
   ResetPasswordValues,
 } from "../validations/auth"
+import { AuthChangeEvent, Session } from "@supabase/supabase-js"
+
+// Supabase istemcisini oluştur
+const supabase = createClient()
 
 // E-posta ve şifre ile kayıt
 export async function signUpWithEmail(data: RegisterFormValues) {
@@ -14,7 +19,7 @@ export async function signUpWithEmail(data: RegisterFormValues) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/callback`,
+      emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard/customer`,
     },
   })
 
@@ -40,7 +45,7 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${window.location.origin}callback`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/customer`, 
     },
   })
 
@@ -91,9 +96,12 @@ export async function getCurrentUser() {
 
 // Oturum durumunu dinleme
 export function onAuthStateChange(
-  callback: (event: "SIGNED_IN" | "SIGNED_OUT" | "USER_UPDATED", session: any) => void,
+  callback: (event: AuthChangeEvent, session: Session | null) => void,
 ) {
   return supabase.auth.onAuthStateChange((event, session) => {
-    callback(event as any, session)
+    callback(event, session)
   })
 }
+
+// useAuth hook'unu yeniden export et
+export { useAuth } from "@/features/auth/hooks/use-auth"

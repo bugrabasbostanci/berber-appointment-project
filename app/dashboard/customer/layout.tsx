@@ -12,6 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useTheme } from "next-themes"
+import { signOut } from "@/lib/supabase/auth"
+import { useAuth } from "@/features/auth/hooks/use-auth"
 
 export default function CustomerDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -234,6 +236,22 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const { dbUser } = useAuth()
+  const handleSignOut = async () => {
+    await signOut()
+  }
+
+  // Avatar fallback için kullanıcı adının baş harflerini oluştur
+  const getInitials = () => {
+    if (dbUser?.firstName && dbUser?.lastName) {
+      return `${dbUser.firstName[0]}${dbUser.lastName[0]}`.toUpperCase()
+    } else if (dbUser?.firstName) {
+      return dbUser.firstName[0].toUpperCase()
+    } else if (dbUser?.email) {
+      return dbUser.email[0].toUpperCase()
+    }
+    return 'U'
+  }
 
   return (
     <div className="relative">
@@ -243,13 +261,17 @@ function UserMenu() {
       >
         <div className="flex h-8 w-8 items-center justify-center overflow-hidden">
           <Avatar className="h-full w-full rounded-md">
-            <AvatarImage src="/rick-8bit.webp?height=32&width=32" alt="User" />
-            <AvatarFallback>MA</AvatarFallback>
+            <AvatarImage src={dbUser?.profileImage || ""} alt="User" />
+            <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
         </div>
         <div className="flex-1 text-left">
-          <p className="text-sm font-medium">Mehmet Aydın</p>
-          <p className="text-xs text-muted-foreground">mehmet@example.com</p>
+          <p className="text-sm font-medium">
+            {dbUser?.firstName && dbUser?.lastName 
+              ? `${dbUser.firstName} ${dbUser.lastName}`
+              : dbUser?.firstName || dbUser?.email || "Kullanıcı"}
+          </p>
+          <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
         </div>
         <Settings className="h-4 w-4 text-muted-foreground" />
       </div>
@@ -283,7 +305,7 @@ function UserMenu() {
             <span>Profilim</span>
           </Link>
           <div className="h-px bg-border my-1" />
-          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm">
+          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm" onClick={handleSignOut}>  
             <LogOut className="mr-2 h-4 w-4" />
             <span>Çıkış Yap</span>
           </button>

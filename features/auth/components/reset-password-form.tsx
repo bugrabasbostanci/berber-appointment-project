@@ -1,7 +1,8 @@
 "use client"
 
+import { createClient } from "@/lib/supabase/client"
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
@@ -26,6 +27,24 @@ export function ResetPasswordForm({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const supabase = createClient()
+
+  // Token geldiğinde oturumun hala geçerli olup olmadığını kontrol et
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (error || !data.session) {
+        toast({
+          title: "Oturum süresi dolmuş",
+          description: "Lütfen şifre sıfırlama işlemini tekrar başlatın",
+          variant: "destructive",
+        })
+        router.push('/forgot-password')
+      }
+    }
+    
+    checkSession()
+  }, [router, supabase, toast])
 
   // Form tanımlama
   const form = useForm<ResetPasswordValues>({
@@ -36,16 +55,15 @@ export function ResetPasswordForm({
     },
   })
 
-  // Form gönderimi - Supabase entegrasyonu için hazır
+  // Form gönderimi
   const onSubmit = async (data: ResetPasswordValues) => {
     setIsLoading(true)
     try {
-      // Burada Supabase Auth entegrasyonu yapılacak
-      // Örnek: await supabase.auth.updateUser({ password: data.password })
-      console.log("Şifre sıfırlanıyor:", data, "Token:", token)
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const { error } = await supabase.auth.updateUser({ 
+        password: data.password 
+      })
+      
+      if (error) throw error
 
       toast({
         title: "Şifreniz başarıyla sıfırlandı",
@@ -53,7 +71,8 @@ export function ResetPasswordForm({
         variant: "default",
       })
 
-      // Giriş sayfasına yönlendirme
+      // Oturumu kapat ve giriş sayfasına yönlendir
+      await supabase.auth.signOut()
       router.push("/login")
     } catch (error) {
       console.error("Şifre sıfırlama hatası:", error)

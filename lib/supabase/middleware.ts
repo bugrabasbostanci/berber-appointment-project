@@ -1,40 +1,56 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export const createClient = (request: NextRequest) => {
-  // This is needed for Next.js Edge Runtime, we also can pass request directly
-  const response = NextResponse.next({
+export async function updateSession(request: NextRequest) {
+  // Yanıt nesnesini oluştur
+  let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
+  // Supabase istemcisini oluştur
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: any) {
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          response.cookies.set({
-            name,
-            value: "",
-            ...options,
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
           })
         },
       },
-    },
+    }
   )
 
-  return { supabase, response }
+  // Oturumu yenile (bu otomatik token yenilemesini sağlar)
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  // Korumalı rotalar için kontrol
+  if (request.nextUrl.pathname.startsWith("/dashboard") && !session) {
+    return NextResponse.redirect(new URL("/login", request.url))
+  }
+
+  // Kullanıcı giriş yapmışsa auth sayfalarına erişimi engelle
+  if (
+    (request.nextUrl.pathname.startsWith("/login") ||
+      request.nextUrl.pathname.startsWith("/register")) &&
+    session
+  ) {
+    // Kullanıcı rolüne göre yönlendirme
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const userRole = user?.user_metadata?.role || "customer"
+
+    return NextResponse.redirect(new URL(`/dashboard/${userRole}`, request.url))
+  }
+
+  return response
 }

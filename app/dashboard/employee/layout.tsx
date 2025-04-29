@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { signOut } from "@/lib/supabase/auth"
 
 export default function EmployeeDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -220,7 +221,9 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
-
+  const handleSignOut = async () => {
+    await signOut()
+  }
   return (
     <div className="relative">
       <div
@@ -269,7 +272,7 @@ function UserMenu() {
             <span>Profilim</span>
           </Link>
           <div className="h-px bg-border my-1" />
-          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm">
+          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm" onClick={handleSignOut}>
             <LogOut className="mr-2 h-4 w-4" />
             <span>Çıkış Yap</span>
           </button>

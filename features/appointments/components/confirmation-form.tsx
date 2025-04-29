@@ -45,6 +45,8 @@ export function ConfirmationForm() {
     time: "14:00",
     staff: "Ahmet Yılmaz",
     staffRole: "Berber",
+    shopId: "1",
+    employeeId: "2"
   }
 
   // Function to handle confirm button click
@@ -52,25 +54,39 @@ export function ConfirmationForm() {
     if (name && phone && agreeToTerms) {
       setIsLoading(true)
 
-      // Simulate API call to create appointment
       try {
-        // In a real app, you would make an API call to create the appointment
-        await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate API delay
-
-        // For development, we'll just log the details
-        console.log("Appointment confirmed:", {
-          ...appointmentDetails,
-          name,
-          phone,
-          notes,
+        // API çağrısı yap
+        const response = await fetch('/api/appointments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            shopId: localStorage.getItem('selectedShopId') || appointmentDetails.shopId,
+            employeeId: localStorage.getItem('selectedEmployeeId') || appointmentDetails.employeeId,
+            date: new Date(appointmentDetails.date),
+            time: new Date(`${appointmentDetails.date} ${appointmentDetails.time}`),
+            endTime: new Date(new Date(`${appointmentDetails.date} ${appointmentDetails.time}`).getTime() + 30 * 60000), // 30 dakika ekle
+            notes,
+            customerName: name,
+            customerPhone: phone
+          })
         })
 
+        if (!response.ok) {
+          throw new Error('Randevu oluşturulurken bir hata oluştu');
+        }
+
+        const data = await response.json();
+        console.log("Randevu oluşturuldu:", data);
+
         // Navigate to success page
-        router.push("/appointments/success")
+        router.push("/appointments/success");
       } catch (error) {
-        console.error("Error creating appointment:", error)
+        console.error("Error creating appointment:", error);
+        // Hata durumunda kullanıcıya bilgi verebiliriz
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
   }

@@ -1,58 +1,81 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, UserPlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-// Mock data for customers
-const mockCustomers = [
-  {
-    id: "1",
-    name: "Ahmet Yılmaz",
-    phone: "+90 555 123 4567",
-    email: "ahmet.yilmaz@example.com",
-    status: "Aktif",
-    lastVisit: "15 Nisan 2023",
-  },
-  {
-    id: "2",
-    name: "Mehmet Kaya",
-    phone: "+90 555 234 5678",
-    email: "mehmet.kaya@example.com",
-    status: "Aktif",
-    lastVisit: "3 Mayıs 2023",
-  },
-  {
-    id: "3",
-    name: "Ayşe Demir",
-    phone: "+90 555 345 6789",
-    email: "ayse.demir@example.com",
-    status: "Pasif",
-    lastVisit: "20 Şubat 2023",
-  },
-  {
-    id: "4",
-    name: "Fatma Şahin",
-    phone: "+90 555 456 7890",
-    email: "fatma.sahin@example.com",
-    status: "Aktif",
-    lastVisit: "10 Mayıs 2023",
-  },
-]
+// Kullanıcı tipi tanımlaması
+type Customer = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  lastVisit?: string;
+  status: string;
+}
 
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState("all")
 
-  // Filter customers based on search term
-  const filteredCustomers = mockCustomers.filter(
-    (customer) =>
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm) ||
-      customer.email.toLowerCase().includes(searchTerm.toLowerCase()),
+  // API'den müşteri verilerini çekme
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/users?role=customer')
+        if (!response.ok) {
+          throw new Error('Müşteri verileri getirilemedi')
+        }
+        const data = await response.json()
+        
+        // API'den gelen verileri UI için uygun formata dönüştürme
+        const formattedCustomers = data.map((customer: any) => ({
+          id: customer.id,
+          name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
+          email: customer.email,
+          phone: customer.phone || "-",
+          status: customer.isActive ? "Aktif" : "Pasif",
+          lastVisit: customer.lastAppointment ? new Date(customer.lastAppointment).toLocaleDateString('tr-TR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          }) : "-"
+        }))
+        
+        setCustomers(formattedCustomers)
+      } catch (error) {
+        console.error("Müşteri verileri yüklenirken hata:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCustomers()
+  }, [])
+
+  // Arama ve durum filtreleme
+  const filteredCustomers = customers.filter(
+    (customer) => {
+      const matchesSearch = 
+        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.phone.includes(searchTerm) ||
+        customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesStatus = 
+        statusFilter === "all" || 
+        (statusFilter === "active" && customer.status === "Aktif") ||
+        (statusFilter === "passive" && customer.status === "Pasif")
+      
+      return matchesSearch && matchesStatus
+    }
   )
 
   return (
@@ -80,7 +103,13 @@ export default function CustomersPage() {
               }}
             />
           </div>
-          <Select defaultValue="all">
+          <Select 
+            defaultValue="all" 
+            onValueChange={(value) => {
+              setStatusFilter(value)
+              setCurrentPage(1)
+            }}
+          >
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Durum" />
             </SelectTrigger>
@@ -94,48 +123,54 @@ export default function CustomersPage() {
       </div>
 
       <div className="flex-1 p-4 overflow-auto">
-        <div className="rounded-md border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">İsim</th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Telefon</th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground hidden md:table-cell">
-                  E-posta
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Durum</th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Son Ziyaret</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCustomers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-4 text-center text-muted-foreground">
-                    {searchTerm ? "Arama kriterlerine uygun müşteri bulunamadı." : "Müşteri bulunamadı."}
-                  </td>
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <p>Yükleniyor...</p>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">İsim</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Telefon</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground hidden md:table-cell">
+                    E-posta
+                  </th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Durum</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Son Ziyaret</th>
                 </tr>
-              ) : (
-                filteredCustomers.map((customer) => (
-                  <tr key={customer.id} className="border-b">
-                    <td className="p-4 align-middle font-medium">{customer.name}</td>
-                    <td className="p-4 align-middle">{customer.phone}</td>
-                    <td className="p-4 align-middle hidden md:table-cell">{customer.email}</td>
-                    <td className="p-4 align-middle">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          customer.status === "Aktif" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
-                        }`}
-                      >
-                        {customer.status}
-                      </span>
+              </thead>
+              <tbody>
+                {filteredCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                      {searchTerm ? "Arama kriterlerine uygun müşteri bulunamadı." : "Müşteri bulunamadı."}
                     </td>
-                    <td className="p-4 align-middle">{customer.lastVisit}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <tr key={customer.id} className="border-b">
+                      <td className="p-4 align-middle font-medium">{customer.name}</td>
+                      <td className="p-4 align-middle">{customer.phone}</td>
+                      <td className="p-4 align-middle hidden md:table-cell">{customer.email}</td>
+                      <td className="p-4 align-middle">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            customer.status === "Aktif" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
+                          }`}
+                        >
+                          {customer.status}
+                        </span>
+                      </td>
+                      <td className="p-4 align-middle">{customer.lastVisit}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

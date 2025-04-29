@@ -5,21 +5,13 @@ import { usePathname } from "next/navigation"
 import { ThemeToggle } from "@/features/theme/components/theme-toggle"
 import { MobileSidebar } from "./mobile-sidebar"
 import { UserAccountNav } from "@/features/auth/components/user-account-nav"
-
-// Geçici olarak kullanıcı durumunu simüle ediyoruz
-// Gerçek uygulamada bu veri bir auth provider'dan gelecek
-const user = {
-  name: "Ahmet Yılmaz",
-  email: "ahmet@example.com",
-  role: "customer",
-} as const
-
-// Geliştirme sırasında kullanıcı durumunu test etmek için
-// Bu değeri true/false yaparak farklı durumları test edebilirsiniz
-const isLoggedIn = false
+import { Button } from "@/components/ui/button"
+import { useAuth } from "@/features/auth/providers/auth-provider"
 
 export function Navbar() {
   const pathname = usePathname()
+  const { user, dbUser } = useAuth()
+  const isLoggedIn = !!user && !!dbUser
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -32,7 +24,7 @@ export function Navbar() {
         {/* Mobile Sidebar and Theme Toggle */}
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
-          <MobileSidebar user={isLoggedIn ? user : null} />
+          <MobileSidebar />
         </div>
 
         {/* Desktop Navigation */}
@@ -67,7 +59,19 @@ export function Navbar() {
         {/* Desktop Auth Buttons or User Account Nav */}
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
-          <UserAccountNav user={isLoggedIn ? user : null} />
+          
+          {isLoggedIn ? (
+            <UserAccountNav />
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Giriş Yap</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Kayıt Ol</Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

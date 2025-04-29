@@ -43,32 +43,9 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   })
 
-// Telefon ile giriş formu şeması - artık kullanılmıyor
-export const phoneLoginFormSchema = z.object({
-  phone: z
-    .string()
-    .min(10, { message: "Telefon numarası 10 haneli olmalıdır" })
-    .max(10, { message: "Telefon numarası 10 haneli olmalıdır" })
-    .regex(/^\d+$/, { message: "Telefon numarası sadece rakamlardan oluşmalıdır" }),
-})
-
-// Telefon ile kayıt formu şeması - artık kullanılmıyor
-export const phoneRegisterFormSchema = z.object({
-  name: z
-    .string()
-    .min(2, { message: "Ad soyad en az 2 karakter olmalıdır" })
-    .max(50, { message: "Ad soyad en fazla 50 karakter olabilir" }),
-  phone: z
-    .string()
-    .min(10, { message: "Telefon numarası 10 haneli olmalıdır" })
-    .max(10, { message: "Telefon numarası 10 haneli olmalıdır" })
-    .regex(/^\d+$/, { message: "Telefon numarası sadece rakamlardan oluşmalıdır" }),
-})
 
 // Form değerleri tipleri
 export type RegisterFormValues = z.infer<typeof registerFormSchema>
 export type LoginFormValues = z.infer<typeof loginFormSchema>
 export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
-export type PhoneLoginFormValues = z.infer<typeof phoneLoginFormSchema>
-export type PhoneRegisterFormValues = z.infer<typeof phoneRegisterFormSchema>

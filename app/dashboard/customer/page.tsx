@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Calendar, Clock, Scissors } from "lucide-react"
 import Link from "next/link"
 
@@ -7,23 +8,59 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function CustomerDashboardPage() {
-  // Mock data for upcoming appointments
-  const upcomingAppointments = [
-    {
-      id: "1",
-      date: "15 Temmuz 2023",
-      time: "14:00",
-      staff: "Ahmet Yılmaz",
-      service: "Saç Kesimi + Sakal Düzeltme",
-    },
-    {
-      id: "2",
-      date: "22 Temmuz 2023",
-      time: "11:30",
-      staff: "Mehmet Kaya",
-      service: "Saç Kesimi",
-    },
-  ]
+  const [upcomingAppointments, setUpcomingAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Verileri API'den çekme
+  useEffect(() => {
+    const fetchUpcomingAppointments = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Gelecek randevuları getir (en fazla 2 tane)
+        const response = await fetch('/api/appointments?past=false&take=2')
+        
+        // API'den gelen tüm yanıtları kabul et, hata durumunda bile
+        const appointmentsData = await response.json().catch(() => []);
+        
+        // API verilerini UI için formatla (null kontrolü eklendi)
+        const formattedAppointments = Array.isArray(appointmentsData) 
+          ? appointmentsData.map(apt => {
+              // Null veya undefined kontrolü
+              if (!apt) return null;
+              
+              return {
+                id: apt.id || "unknown",
+                date: apt.date ? new Date(apt.date).toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                }) : "-",
+                time: apt.time ? new Date(apt.time).toLocaleTimeString('tr-TR', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : "-",
+                staff: apt.employee ? `${apt.employee.firstName || ''} ${apt.employee.lastName || ''}`.trim() : "-",
+                service: apt.serviceName || "Belirtilmemiş",
+              }
+            }).filter(Boolean) // null değerleri filtrele
+          : [];
+        
+        setUpcomingAppointments(formattedAppointments);
+        
+      } catch (error) {
+        console.error("Randevu verileri yüklenirken hata:", error);
+        // Hata olsa bile boş dizi ile devam et
+        setUpcomingAppointments([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchUpcomingAppointments();
+  }, []);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -33,7 +70,15 @@ export default function CustomerDashboardPage() {
           <CardTitle>Yaklaşan Randevularım</CardTitle>
         </CardHeader>
         <CardContent>
-          {upcomingAppointments.length > 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center py-8">
+              <p>Randevular yükleniyor...</p>
+            </div>
+          ) : error ? (
+            <div className="flex justify-center items-center py-8">
+              <p className="text-red-600">{error}</p>
+            </div>
+          ) : upcomingAppointments.length > 0 ? (
             <div className="grid gap-4">
               {upcomingAppointments.map((appointment) => (
                 <div
@@ -59,11 +104,11 @@ export default function CustomerDashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 self-end sm:self-auto">
-                    <Button variant="outline" size="sm">
-                      Değiştir
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/appointments/${appointment.id}/reschedule`}>Değiştir</Link>
                     </Button>
-                    <Button variant="destructive" size="sm">
-                      İptal Et
+                    <Button variant="destructive" size="sm" asChild>
+                      <Link href={`/appointments/${appointment.id}/cancel`}>İptal Et</Link>
                     </Button>
                   </div>
                 </div>

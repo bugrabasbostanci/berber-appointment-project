@@ -1,10 +1,12 @@
 "use client"
 
+import { createClient } from "@/lib/supabase/client"
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { forgotPasswordSchema, type ForgotPasswordValues } from "@/lib/validations/auth"
@@ -19,25 +21,36 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  const supabase = createClient()
+
+  // URL'den email parametresini al
+  const emailFromURL = searchParams.get("email")
 
   // Form tanımlama
   const form = useForm<ForgotPasswordValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
-      email: "",
+      email: emailFromURL || "",
     },
   })
 
-  // Form gönderimi - Supabase entegrasyonu için hazır
+  // URL'den email parametresi değiştiğinde formu güncelle
+  useEffect(() => {
+    if (emailFromURL) {
+      form.setValue("email", emailFromURL)
+    }
+  }, [emailFromURL, form])
+
+  // Form gönderimi
   const onSubmit = async (data: ForgotPasswordValues) => {
     setIsLoading(true)
     try {
-      // Burada Supabase Auth entegrasyonu yapılacak
-      // Örnek: await supabase.auth.resetPasswordForEmail(data.email)
-      console.log("Şifre sıfırlama e-postası gönderiliyor:", data.email)
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      
+      if (error) throw error
 
       setIsSubmitted(true)
       toast({
@@ -47,9 +60,19 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
       })
     } catch (error) {
       console.error("Şifre sıfırlama hatası:", error)
+      
+      let errorMessage = "Bir hata oluştu. Lütfen tekrar deneyin."
+      
+      if (error instanceof Error) {
+        // Özel hata mesajları için kontrol
+        if (error.message.includes("User not found")) {
+          errorMessage = "Bu e-posta adresi ile kayıtlı bir kullanıcı bulunamadı."
+        }
+      }
+      
       toast({
         title: "Şifre sıfırlama başarısız",
-        description: "Bir hata oluştu. Lütfen tekrar deneyin.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -75,7 +98,12 @@ export function ForgotPasswordForm({ className, ...props }: React.ComponentProps
                     <FormItem>
                       <FormLabel>E-posta</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="m@example.com" {...field} disabled={isLoading} />
+                        <Input 
+                          type="email" 
+                          placeholder="m@example.com" 
+                          {...field} 
+                          disabled={isLoading || !!emailFromURL}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

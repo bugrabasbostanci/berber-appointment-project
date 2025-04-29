@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { BarChart3, Building2, Home, LogOut, Moon, PanelLeft, Scissors, Settings, Sun, User, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,12 +12,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useTheme } from "next-themes"
+import { signOut } from "@/lib/supabase/auth"
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
 
   // Check if we're on mobile
   useEffect(() => {
@@ -88,9 +90,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
       <div className="flex flex-1">
         {/* Desktop Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r bg-background transition-transform md:flex ${
-            isOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r bg-background transition-transform md:flex ${isOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
         >
           <div className="flex h-full flex-col">
             <div className="p-4">
@@ -154,11 +155,10 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
     <>
       <Link
         href="/dashboard/admin"
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/admin"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/dashboard/admin"
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        }`}
+          }`}
         onClick={handleLinkClick}
       >
         <BarChart3 className="h-5 w-5" />
@@ -166,11 +166,10 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
       </Link>
       <Link
         href="/dashboard/admin/shops"
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/admin/shops"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/dashboard/admin/shops"
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        }`}
+          }`}
         onClick={handleLinkClick}
       >
         <Building2 className="h-5 w-5" />
@@ -178,11 +177,10 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
       </Link>
       <Link
         href="/dashboard/admin/users"
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/admin/users"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/dashboard/admin/users"
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        }`}
+          }`}
         onClick={handleLinkClick}
       >
         <Users className="h-5 w-5" />
@@ -190,11 +188,10 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
       </Link>
       <Link
         href="/dashboard/admin/settings"
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/admin/settings"
+        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/dashboard/admin/settings"
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        }`}
+          }`}
         onClick={handleLinkClick}
       >
         <Settings className="h-5 w-5" />
@@ -207,6 +204,16 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push("/login")
+    } catch (error) {
+      console.error("Çıkış yapma hatası:", error)
+    }
+  }
 
   return (
     <div className="relative">
@@ -256,7 +263,10 @@ function UserMenu() {
             <span>Profilim</span>
           </Link>
           <div className="h-px bg-border my-1" />
-          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm">
+          <button 
+            className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm"
+            onClick={handleSignOut}
+          >
             <LogOut className="mr-2 h-4 w-4" />
             <span>Çıkış Yap</span>
           </button>

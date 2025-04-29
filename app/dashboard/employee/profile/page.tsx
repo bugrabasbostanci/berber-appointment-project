@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -10,9 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { createClient } from "@/lib/supabase/client"
 
 export default function EmployeeProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
 
   // Basitleştirilmiş çalışan verileri
   const [employeeData, setEmployeeData] = useState({
@@ -25,12 +27,71 @@ export default function EmployeeProfilePage() {
     skills: ["Saç Kesimi", "Sakal Tıraşı", "Saç Boyama", "Cilt Bakımı"],
   })
 
+  // Sayfa yüklendiğinde kullanıcı ID'sini al ve profil verilerini getir
+  useEffect(() => {
+    async function getUserIdAndProfile() {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const uid = session.user.id;
+        setUserId(uid);
+        fetchProfileData(uid);
+      }
+    }
+    
+    getUserIdAndProfile();
+  }, []);
+
+  // Profil verilerini getirmek için
+  const fetchProfileData = async (uid: string) => {
+    if (!uid) return;
+    
+    try {
+      const response = await fetch(`/api/users/${uid}`);
+      
+      if (!response.ok) {
+        throw new Error('Profil bilgileri alınamadı');
+      }
+      
+      const data = await response.json();
+      setEmployeeData(data);
+    } catch (error) {
+      console.error("Profil bilgileri alınamadı:", error);
+    }
+  };
+
   // Form gönderimi
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsEditing(false)
-    // Gerçek bir uygulamada, burada verileri sunucuya kaydedersiniz
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!userId) {
+      console.error("Kullanıcı kimliği bulunamadı");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(employeeData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Profil güncellenirken bir hata oluştu');
+      }
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Profil güncellenemedi:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 w-full">

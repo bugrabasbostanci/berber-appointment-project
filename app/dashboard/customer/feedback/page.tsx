@@ -15,12 +15,35 @@ export default function FeedbackPage() {
   const [rating, setRating] = useState("5")
   const [feedback, setFeedback] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [appointmentId, setAppointmentId] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, you would send the feedback to your backend
-    console.log({ rating, feedback })
-    setSubmitted(true)
+    setIsLoading(true)
+    
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          rating: parseInt(rating), 
+          comment: feedback 
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Geri bildirim gönderilirken bir hata oluştu')
+      }
+      
+      setSubmitted(true)
+    } catch (error) {
+      console.error("Geri bildirim gönderilemedi:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

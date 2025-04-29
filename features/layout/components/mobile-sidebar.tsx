@@ -7,19 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Menu, Home, Scissors, Info, Star, Phone, User, LayoutDashboard, Settings, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/features/auth/providers/auth-provider"
+import { createClient } from "@/lib/supabase/client"
 
-interface MobileSidebarProps {
-  user: {
-    name: string
-    email: string
-    image?: string
-    role: "customer" | "barber" | "employee" | "admin"
-  } | null
-}
-
-export function MobileSidebar({ user }: MobileSidebarProps) {
+export function MobileSidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const { user, dbUser } = useAuth()
+  const isLoggedIn = !!user && !!dbUser
 
   const closeSheet = () => setOpen(false)
   const toggleSheet = () => setOpen(!open)
@@ -34,23 +29,34 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
   ]
 
   // Kullanıcı giriş yapmışsa ek navigasyon öğeleri
-  const userNavItems = user
+  const userNavItems = isLoggedIn && dbUser
     ? [
-        { title: "Dashboard", href: `/dashboard/${user.role}`, icon: LayoutDashboard },
-        { title: "Profil", href: `/dashboard/${user.role}/profile`, icon: User },
-        { title: "Ayarlar", href: `/dashboard/${user.role}/settings`, icon: Settings },
+        { title: "Dashboard", href: `/dashboard/${dbUser.role.toLowerCase()}`, icon: LayoutDashboard },
+        { title: "Profil", href: `/dashboard/${dbUser.role.toLowerCase()}/profile`, icon: User },
+        { title: "Ayarlar", href: `/dashboard/${dbUser.role.toLowerCase()}/settings`, icon: Settings },
       ]
     : []
 
   // Kullanıcı adının baş harflerini al
-  const initials = user
-    ? user.name
+  const fullName = isLoggedIn && dbUser 
+    ? `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Kullanıcı'
+    : ""
+
+  const initials = fullName
+    ? fullName
         .split(" ")
         .map((n) => n[0])
         .join("")
         .toUpperCase()
         .substring(0, 2)
     : ""
+
+  // Oturum kapatma işlevi
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    closeSheet()
+  }
 
   return (
     <>
@@ -60,18 +66,18 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="flex flex-col p-0" closeButton={false}>
+        <SheetContent side="left" className="flex flex-col p-0">
           <SheetHeader className="border-b p-4">
             <SheetTitle className="flex items-center">
-              {user ? (
+              {isLoggedIn && dbUser ? (
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user.image || ""} alt={user.name} />
+                    <AvatarImage src={dbUser.profileImage || ""} alt={fullName} />
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                    <span className="truncate font-semibold">{fullName}</span>
+                    <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
                   </div>
                 </div>
               ) : (
@@ -133,13 +139,11 @@ export function MobileSidebar({ user }: MobileSidebarProps) {
 
           <div className="border-t p-4">
             <div className="grid gap-2">
-              {user ? (
-                <Link href="/auth/logout" onClick={closeSheet}>
-                  <Button variant="outline" className="w-full flex items-center justify-center">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Çıkış Yap
-                  </Button>
-                </Link>
+              {isLoggedIn ? (
+                <Button variant="outline" onClick={handleSignOut} className="w-full flex items-center justify-center">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Çıkış Yap
+                </Button>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <Link href="/login" onClick={closeSheet}>

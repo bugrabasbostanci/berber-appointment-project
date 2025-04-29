@@ -20,6 +20,10 @@ export function TimeSelectionForm() {
   const [selectedStaff, setSelectedStaff] = useState<string | undefined>(undefined)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [accordionValue, setAccordionValue] = useState<string>("staff")
+  const [availableTimes, setAvailableTimes] = useState<{ id: string; time: string; available: boolean }[]>([])
+  const [staffMembers, setStaffMembers] = useState<{ id: string; name: string; role: string; available: boolean; experience: string }[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Update current time every second
   useEffect(() => {
@@ -37,40 +41,56 @@ export function TimeSelectionForm() {
     second: "2-digit",
   })
 
-  // Example available times (in a real app, these would come from an API based on the selected date and staff)
-  const availableTimes = [
-    { id: "1", time: "09:00", available: true },
-    { id: "2", time: "10:00", available: true },
-    { id: "3", time: "11:00", available: false },
-    { id: "4", time: "12:00", available: true },
-    { id: "5", time: "13:00", available: false },
-    { id: "6", time: "14:00", available: true },
-    { id: "7", time: "15:00", available: true },
-    { id: "8", time: "16:00", available: true },
-    { id: "9", time: "17:00", available: false },
-    { id: "10", time: "18:00", available: true },
-    { id: "11", time: "19:00", available: true },
-  ]
+  // Kullanılabilir zamanları getirmek için
+  const fetchAvailableTimes = async (date: string, shopId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/availability/check?date=${date}&shopId=${shopId}`);
+      
+      if (!response.ok) {
+        throw new Error('Müsaitlik bilgileri alınamadı');
+      }
+      
+      const data = await response.json();
+      setAvailableTimes(data.availableTimes);
+    } catch (error) {
+      console.error("Müsaitlik bilgileri alınamadı:", error);
+      setError("Müsaitlik bilgileri yüklenirken bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Example staff (in a real app, these would come from an API)
-  const staffMembers = [
-    { id: "1", name: "Ahmet Yılmaz", role: "berber", available: true, experience: "10+ yıl" },
-    { id: "2", name: "Mehmet Kaya", role: "berber", available: true, experience: "5+ yıl" },
-    { id: "3", name: "Ali Demir", role: "berber", available: false, experience: "8+ yıl" },
-    { id: "4", name: "Ayşe Yıldız", role: "çalışan", available: true, experience: "3+ yıl" },
-    { id: "5", name: "Fatma Şahin", role: "çalışan", available: false, experience: "2+ yıl" },
-  ]
+  // Çalışanları getirmek için
+  const fetchStaffMembers = async (shopId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/shops/${shopId}/employees`);
+      
+      if (!response.ok) {
+        throw new Error('Çalışan bilgileri alınamadı');
+      }
+      
+      const data = await response.json();
+      setStaffMembers(data);
+    } catch (error) {
+      console.error("Çalışan bilgileri alınamadı:", error);
+      setError("Çalışan bilgileri yüklenirken bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Function to handle continue button click
   const handleContinue = () => {
     if (selectedTime && selectedStaff) {
-      // In a real app, you would store the selected time and staff and proceed to the next step
-      console.log("Selected time:", selectedTime)
-      console.log("Selected staff:", selectedStaff)
-      // For development, we'll navigate to a placeholder for the next step
-      router.push("/appointments/new/confirm")
+      // Seçilen bilgileri localStorage'a kaydet (context veya state yönetim aracı yoksa)
+      localStorage.setItem('selectedTime', selectedTime);
+      localStorage.setItem('selectedStaffId', selectedStaff);
+      
+      router.push("/appointments/new/confirm");
     }
-  }
+  };
 
   // Function to handle staff selection
   const handleStaffSelection = (staffId: string) => {

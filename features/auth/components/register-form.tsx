@@ -1,5 +1,6 @@
 "use client"
 
+import { createClient } from "@/lib/supabase/client"
 import type React from "react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
@@ -16,12 +17,16 @@ import { Icons } from "@/features/shared/components/icons"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export function RegisterForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [existingAccountError, setExistingAccountError] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
+  const supabase = createClient()
 
   // Form tanımlama
   const form = useForm<RegisterFormValues>({
@@ -32,47 +37,89 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
     },
   })
 
-  // Form gönderimi - Supabase entegrasyonu için hazır
+  // Form gönderimi
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
+    setExistingAccountError(null)
+    
     try {
-      // Burada Supabase Auth entegrasyonu yapılacak
-      // Örnek: await supabase.auth.signUp({ email: data.email, password: data.password })
-      console.log("Kayıt verileri:", data)
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      toast({
-        title: "Kayıt başarılı!",
-        description: "Hesabınız başarıyla oluşturuldu. Lütfen e-postanızı kontrol edin.",
-        variant: "default",
+      // Supabase Auth ile kullanıcı kaydı
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          // Email doğrulama için
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard/customer`,
+          // Kullanıcı meta verileri
+          data: {
+            role: 'customer' // Varsayılan olarak müşteri rolü
+          }
+        }
       })
-
-      // Başarılı kayıt sonrası yönlendirme
-      // router.push("/verify-email")
-    } catch (error) {
-      console.error("Kayıt hatası:", error)
+      
+      // Hata kontrolü ve kullanıcı dostu mesajlar
+      if (error) {
+        if (error.message.includes("already registered")) {
+          setExistingAccountError(data.email)
+          return
+        }
+        throw error
+      }
+      
+      // Supabase Auth kaydından sonra Prisma'da kullanıcı oluştur
+      if (authData?.user) {
+        try {
+          // Oturum bilgilerini güncelle
+          await fetch('/api/auth/session')
+        } catch (dbError) {
+          console.error("Veritabanı senkronizasyon hatası:", dbError)
+          // Bu hata kullanıcı deneyimini engellemeyeceği için, toast bildirimi gösterme
+        }
+      }
+      
       toast({
-        title: "Kayıt başarısız",
-        description: "Bir hata oluştu. Lütfen tekrar deneyin.",
-        variant: "destructive",
+        title: 'Kayıt başarılı!',
+        description: 'Lütfen e-posta adresinizi kontrol edin ve hesabınızı doğrulayın.',
+      })
+      
+      // Kullanıcıyı giriş sayfasına yönlendir
+      router.push('/login')
+    } catch (error) {
+      console.error('Kayıt hatası:', error)
+      toast({
+        title: 'Kayıt başarısız',
+        description: error instanceof Error ? error.message : 'Kayıt sırasında bir hata oluştu',
+        variant: 'destructive',
       })
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Google ile kayıt - Supabase entegrasyonu için hazır
+  // Varolan hesaba giriş yapmak için yönlendirme
+  const handleExistingAccountLogin = () => {
+    router.push(`/login?email=${encodeURIComponent(form.getValues("email"))}`)
+  }
+
+  // Şifremi unuttum sayfasına yönlendirme
+  const handleForgotPassword = () => {
+    router.push(`/forgot-password?email=${encodeURIComponent(form.getValues("email"))}`)
+  }
+
+  // Google ile kayıt
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     try {
-      // Burada Supabase Auth Google entegrasyonu yapılacak
-      // Örnek: await supabase.auth.signInWithOAuth({ provider: 'google' })
-      console.log("Google ile kayıt yapılıyor")
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) throw error
+      
+      // Google yönlendirmesi ile işlem devam edecek
     } catch (error) {
       console.error("Google kayıt hatası:", error)
       toast({
@@ -80,7 +127,6 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
         description: "Bir hata oluştu. Lütfen tekrar deneyin.",
         variant: "destructive",
       })
-    } finally {
       setIsLoading(false)
     }
   }
@@ -98,6 +144,36 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
         </CardHeader>
         <CardContent>
           <div className="grid gap-6">
+            {existingAccountError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Bu e-posta adresi zaten kayıtlı</AlertTitle>
+                <AlertDescription>
+                  <p className="mb-2">
+                    {existingAccountError} adresi ile bir hesap zaten bulunmaktadır.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleExistingAccountLogin}
+                      className="w-full"
+                    >
+                      Giriş yap
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleForgotPassword}
+                      className="w-full"
+                    >
+                      Şifremi unuttum
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField

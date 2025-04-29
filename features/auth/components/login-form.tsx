@@ -1,11 +1,12 @@
 "use client"
 
+import { createClient } from "@/lib/supabase/client"
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { loginFormSchema, type LoginFormValues } from "@/lib/validations/auth"
@@ -16,32 +17,48 @@ import { Icons } from "@/features/shared/components/icons"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InfoIcon } from "lucide-react"
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [redirectMessage, setRedirectMessage] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const supabase = createClient()
+
+  // URL'den email parametresini al
+  const emailFromURL = searchParams.get("email")
 
   // Form tanımlama
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
-      email: "",
+      email: emailFromURL || "",
       password: "",
     },
   })
 
-  // Form gönderimi - Supabase entegrasyonu için hazır
+  // URL'den email parametresi değiştiğinde formu güncelle
+  useEffect(() => {
+    if (emailFromURL) {
+      form.setValue("email", emailFromURL)
+      setRedirectMessage("Bu e-posta adresi ile zaten bir hesabınız var. Lütfen giriş yapın.")
+    }
+  }, [emailFromURL, form])
+
+  // Form gönderimi
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true)
     try {
-      // Burada Supabase Auth entegrasyonu yapılacak
-      // Örnek: await supabase.auth.signInWithPassword({ email: data.email, password: data.password })
-      console.log("Giriş verileri:", data)
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email: data.email, 
+        password: data.password 
+      })
+      
+      if (error) throw error
 
       toast({
         title: "Giriş başarılı!",
@@ -50,12 +67,26 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       })
 
       // Başarılı giriş sonrası yönlendirme
-      // router.push("/dashboard/customer")
+      router.push("/dashboard/customer")
+      // Supabase client tarafında oturum değişikliği dinleniyor olacak
+      // Bu muhtemelen auth-provider.tsx içindeki useEffect'te zaten yapıldı
     } catch (error) {
       console.error("Giriş hatası:", error)
+      
+      let errorMessage = "E-posta veya şifre hatalı. Lütfen tekrar deneyin."
+      
+      if (error instanceof Error) {
+        // Özel hata mesajları için kontrol
+        if (error.message.includes("Email not confirmed")) {
+          errorMessage = "E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı kontrol edin."
+        } else if (error.message.includes("Invalid login credentials")) {
+          errorMessage = "Geçersiz giriş bilgileri. E-posta veya şifre hatalı."
+        }
+      }
+      
       toast({
         title: "Giriş başarısız",
-        description: "E-posta veya şifre hatalı. Lütfen tekrar deneyin.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -63,16 +94,20 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     }
   }
 
-  // Google ile giriş - Supabase entegrasyonu için hazır
+  // Google ile giriş
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      // Burada Supabase Auth Google entegrasyonu yapılacak
-      // Örnek: await supabase.auth.signInWithOAuth({ provider: 'google' })
-      console.log("Google ile giriş yapılıyor")
-
-      // Simüle edilmiş API gecikmesi - gerçek implementasyonda kaldırılacak
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) throw error
+      
+      // Google yönlendirmesi ile işlem devam edecek, toast gösterilmeyecek
     } catch (error) {
       console.error("Google giriş hatası:", error)
       toast({
@@ -80,7 +115,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         description: "Bir hata oluştu. Lütfen tekrar deneyin.",
         variant: "destructive",
       })
-    } finally {
       setIsLoading(false)
     }
   }

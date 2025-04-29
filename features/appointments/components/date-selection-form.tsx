@@ -10,24 +10,113 @@ import { cn } from "@/lib/utils"
 import { AppointmentSteps } from "./appointment-steps"
 import { Separator } from "@/components/ui/separator"
 
-// Mock availability data - consistent for all months
-const MOCK_AVAILABILITY_DATA = {
-  high: [1, 5, 9, 13, 17, 21, 25, 29],
-  medium: [2, 6, 10, 14, 18, 22, 26, 30],
-  low: [3, 7, 11, 15, 19, 23, 27, 31],
-  closed: [0], // Sundays will be added dynamically
-}
-
 export function DateSelectionForm() {
   const router = useRouter()
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [today] = useState<Date>(new Date())
+  const [availabilityData, setAvailabilityData] = useState({
+    high: [],
+    medium: [],
+    low: [],
+    closed: [0], // Sundays will be added dynamically
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [shopId, setShopId] = useState(null)
+
+  // Müsaitlik verilerini API'den çekme
+  useEffect(() => {
+    const fetchAvailabilityData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Varsayılan olarak ilk dükkanı getirme
+        const shopResponse = await fetch('/api/shops?take=1')
+        if (!shopResponse.ok) {
+          throw new Error('Dükkan bilgileri getirilemedi')
+        }
+        
+        const shopData = await shopResponse.json()
+        if (!shopData.shops || shopData.shops.length === 0) {
+          throw new Error('Hiç dükkan bulunamadı')
+        }
+        
+        const shopId = shopData.shops[0].id
+        setShopId(shopId)
+        
+        // Ay için formatlı tarihler
+        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+        
+        // Dükkanın müsaitlik durumunu getir
+        const availabilityResponse = await fetch(
+          `/api/shops/${shopId}/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}`
+        )
+        
+        if (!availabilityResponse.ok) {
+          throw new Error('Müsaitlik verileri getirilemedi')
+        }
+        
+        const availabilityResponseData = await availabilityResponse.json()
+        
+        // API verisini müsaitlik seviyelerine ayır
+        const highAvailabilityDays = []
+        const mediumAvailabilityDays = []
+        const lowAvailabilityDays = []
+        
+        availabilityResponseData.forEach(dayData => {
+          const date = new Date(dayData.date)
+          const day = date.getDate()
+          
+          // Doluluk oranına göre sınıflandır
+          const availableSlots = dayData.availableSlots || 0
+          const totalSlots = dayData.totalSlots || 20 // varsayılan değer
+          
+          const availabilityPercentage = (availableSlots / totalSlots) * 100
+          
+          if (availabilityPercentage >= 70) {
+            highAvailabilityDays.push(day)
+          } else if (availabilityPercentage >= 30) {
+            mediumAvailabilityDays.push(day)
+          } else {
+            lowAvailabilityDays.push(day)
+          }
+        })
+        
+        setAvailabilityData({
+          high: highAvailabilityDays,
+          medium: mediumAvailabilityDays,
+          low: lowAvailabilityDays,
+          closed: [0] // Pazar günleri kapalı
+        })
+        
+      } catch (error) {
+        console.error("Müsaitlik verileri yüklenirken hata:", error)
+        setError(error.message)
+        // Hata durumunda varsayılan müsaitlik verisi kullan
+        setAvailabilityData({
+          high: [1, 5, 9, 13, 17, 21, 25, 29],
+          medium: [2, 6, 10, 14, 18, 22, 26, 30],
+          low: [3, 7, 11, 15, 19, 23, 27, 31],
+          closed: [0]
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchAvailabilityData()
+  }, [currentMonth])
 
   // Function to handle continue button click
   const handleContinue = () => {
     if (date) {
-      console.log("Selected date:", date)
+      // Seçilen tarihi localStorage'a kaydet
+      localStorage.setItem('appointmentDate', date.toISOString())
+      localStorage.setItem('appointmentShopId', shopId)
+      
       router.push("/appointments/new/time")
     }
   }
@@ -121,9 +210,9 @@ export function DateSelectionForm() {
   // Get availability level for a day
   const getAvailabilityLevel = (day: number) => {
     if (isSunday(day)) return "closed"
-    if (MOCK_AVAILABILITY_DATA.high.includes(day % 31)) return "high"
-    if (MOCK_AVAILABILITY_DATA.medium.includes(day % 31)) return "medium"
-    if (MOCK_AVAILABILITY_DATA.low.includes(day % 31)) return "low"
+    if (availabilityData.high.includes(day)) return "high"
+    if (availabilityData.medium.includes(day)) return "medium"
+    if (availabilityData.low.includes(day)) return "low"
     return "medium" // Default
   }
 
@@ -154,197 +243,170 @@ export function DateSelectionForm() {
 
           <Separator className="my-4" />
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={prevMonth}
-                className="p-2 rounded-full hover:bg-muted flex items-center justify-center"
-                aria-label="Önceki ay"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <div className="flex items-center">
-                <CalendarIcon className="mr-2 h-5 w-5" />
-                <span className="text-lg font-medium">
-                  {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {year}
-                </span>
-              </div>
-              <button
-                onClick={nextMonth}
-                className="p-2 rounded-full hover:bg-muted flex items-center justify-center"
-                aria-label="Sonraki ay"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
+          {loading ? (
+            <div className="flex justify-center items-center py-8">
+              <p>Müsaitlik verileri yükleniyor...</p>
             </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {daysOfWeek.map((day, index) => (
-                <div
-                  key={day}
-                  className={cn(
-                    "h-10 flex items-center justify-center text-sm font-medium",
-                    index === 6 ? "text-red-500" : "text-muted-foreground",
-                  )}
+          ) : error ? (
+            <div className="flex justify-center items-center py-8">
+              <p className="text-red-600">Hata: {error}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={prevMonth}
+                  className="p-2 rounded-full hover:bg-muted flex items-center justify-center"
+                  aria-label="Önceki ay"
                 >
-                  {day}
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex items-center">
+                  <CalendarIcon className="mr-2 h-5 w-5" />
+                  <span className="text-lg font-medium">
+                    {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {year}
+                  </span>
                 </div>
-              ))}
+                <button
+                  onClick={nextMonth}
+                  className="p-2 rounded-full hover:bg-muted flex items-center justify-center"
+                  aria-label="Sonraki ay"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
 
-              {calendarDays.map((day, index) => {
-                if (day === null) {
-                  return <div key={`empty-${index}`} className="h-14"></div>
-                }
-
-                const dayIsSunday = isSunday(day)
-                const dayIsDisabled = isDisabled(day)
-                const dayIsToday = isToday(day)
-                const dayIsSelected =
-                  date?.getDate() === day &&
-                  date?.getMonth() === currentMonth.getMonth() &&
-                  date?.getFullYear() === currentMonth.getFullYear()
-                const availabilityLevel = getAvailabilityLevel(day)
-
-                return (
+              <div className="grid grid-cols-7 gap-1">
+              {daysOfWeek.map((day, index) => (
                   <div
-                    key={`day-${day}`}
+                    key={day}
                     className={cn(
-                      "relative h-14 border rounded-md flex flex-col items-center justify-center transition-colors",
-                      dayIsDisabled ? "cursor-not-allowed" : "cursor-pointer",
-                      dayIsSelected && "bg-foreground text-background",
-                      dayIsToday && "border-primary border-2",
-                      dayIsSunday && "bg-red-50 dark:bg-red-950",
+                      "h-10 flex items-center justify-center text-sm font-medium",
+                      index === 6 ? "text-red-500" : "text-muted-foreground",
                     )}
-                    onClick={() => {
-                      if (!dayIsDisabled) {
-                        const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
-                        setDate(newDate)
-                      }
-                    }}
                   >
-                    {dayIsToday && (
-                      <div className="absolute top-1 right-1">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                        </span>
-                      </div>
-                    )}
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        dayIsSunday && "text-red-500",
-                        dayIsSelected && "text-background",
-                        dayIsDisabled && !dayIsSunday && "text-muted-foreground/50",
-                      )}
-                    >
-                      {day}
-                    </span>
-                    {dayIsSunday && (
-                      <span className="text-[10px] text-red-500 font-medium mt-0.5 px-1 py-0.5 bg-red-100 dark:bg-red-900 rounded">
-                        KAPALI
-                      </span>
-                    )}
-                    {!dayIsDisabled && !dayIsSunday && (
-                      <div className="flex gap-0.5 mt-1">
-                        {availabilityLevel === "high" && (
-                          <>
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                dayIsSelected ? "bg-background" : "bg-green-500",
-                              )}
-                            ></div>
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                dayIsSelected ? "bg-background" : "bg-green-500",
-                              )}
-                            ></div>
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                dayIsSelected ? "bg-background" : "bg-green-500",
-                              )}
-                            ></div>
-                          </>
-                        )}
-                        {availabilityLevel === "medium" && (
-                          <>
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                dayIsSelected ? "bg-background" : "bg-yellow-500",
-                              )}
-                            ></div>
-                            <div
-                              className={cn(
-                                "w-1.5 h-1.5 rounded-full",
-                                dayIsSelected ? "bg-background" : "bg-yellow-500",
-                              )}
-                            ></div>
-                          </>
-                        )}
-                        {availabilityLevel === "low" && (
-                          <div
-                            className={cn("w-1.5 h-1.5 rounded-full", dayIsSelected ? "bg-background" : "bg-red-500")}
-                          ></div>
-                        )}
-                      </div>
-                    )}
+                    {day}
                   </div>
-                )
-              })}
-            </div>
+                ))}
 
-            <div className="mt-6 flex flex-wrap justify-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-foreground"></div>
-                <span className="text-sm">Bugün</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-full border border-muted-foreground"></div>
-                <span className="text-sm">Aktif Günler</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-red-500 font-medium px-1 py-0.5 bg-red-100 dark:bg-red-900 rounded">
-                  KAPALI
-                </span>
-                <span className="text-sm">Pazar Günleri</span>
-              </div>
-            </div>
+                {calendarDays.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} className="h-14"></div>
+                  }
 
-            <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                </div>
-                <span className="text-sm">Yüksek Müsaitlik</span>
+                  const dayIsSunday = isSunday(day)
+                  const dayIsDisabled = isDisabled(day)
+                  const dayIsToday = isToday(day)
+                  const dayIsSelected =
+                    date?.getDate() === day &&
+                    date?.getMonth() === currentMonth.getMonth() &&
+                    date?.getFullYear() === currentMonth.getFullYear()
+                  const availabilityLevel = getAvailabilityLevel(day)
+
+                  return (
+                    <div
+                      key={`day-${day}`}
+                      className={cn(
+                        "relative h-14 border rounded-md flex flex-col items-center justify-center transition-colors",
+                        dayIsDisabled ? "cursor-not-allowed" : "cursor-pointer",
+                        dayIsSelected && "bg-foreground text-background",
+                        dayIsToday && "border-primary border-2",
+                        dayIsSunday && "bg-red-50 dark:bg-red-950",
+                      )}
+                      onClick={() => {
+                        if (!dayIsDisabled) {
+                          const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+                          setDate(newDate)
+                        }
+                      }}
+                    >
+                      {dayIsToday && (
+                        <div className="absolute top-1 right-1">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                          </span>
+                        </div>
+                      )}
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          dayIsSunday && "text-red-500",
+                          dayIsSelected && "text-background",
+                          dayIsDisabled && !dayIsSunday && "text-muted-foreground/50",
+                        )}
+                      >
+                        {day}
+                      </span>
+                      {dayIsSunday && (
+                        <span className="text-[10px] text-red-500 font-medium mt-0.5 px-1 py-0.5 bg-red-100 dark:bg-red-900 rounded">
+                          KAPALI
+                        </span>
+                      )}
+                      {!dayIsDisabled && !dayIsSunday && (
+                        <div className="flex gap-0.5 mt-1">
+                          {availabilityLevel === "high" && (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                            </>
+                          )}
+                          {availabilityLevel === "medium" && (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                            </>
+                          )}
+                          {availabilityLevel === "low" && (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+
+              <div className="flex items-center justify-center gap-6 mt-6">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Yüksek Müsaitlik</span>
                 </div>
-                <span className="text-sm">Orta Müsaitlik</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                <span className="text-sm">Düşük Müsaitlik</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Orta Müsaitlik</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted"></span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Düşük Müsaitlik</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </CardContent>
-
-        <Separator />
-
-        <CardFooter className="p-6 flex justify-between">
+        <CardFooter className="px-6 py-4 border-t flex justify-between">
           <Link href="/">
             <Button variant="outline">İptal</Button>
           </Link>
-          <Button onClick={handleContinue} disabled={!date}>
+          <Button onClick={handleContinue} disabled={!date || loading}>
             Devam Et
           </Button>
         </CardFooter>
@@ -352,3 +414,5 @@ export function DateSelectionForm() {
     </div>
   )
 }
+
+                

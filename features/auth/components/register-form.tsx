@@ -41,7 +41,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
     setExistingAccountError(null)
-    
+
     try {
       // Supabase Auth ile kullanıcı kaydı
       const { data: authData, error } = await supabase.auth.signUp({
@@ -56,7 +56,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
           }
         }
       })
-      
+
       // Hata kontrolü ve kullanıcı dostu mesajlar
       if (error) {
         if (error.message.includes("already registered")) {
@@ -65,7 +65,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
         }
         throw error
       }
-      
+
       // Supabase Auth kaydından sonra Prisma'da kullanıcı oluştur
       if (authData?.user) {
         try {
@@ -76,12 +76,12 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
           // Bu hata kullanıcı deneyimini engellemeyeceği için, toast bildirimi gösterme
         }
       }
-      
+
       toast({
         title: 'Kayıt başarılı!',
         description: 'Lütfen e-posta adresinizi kontrol edin ve hesabınızı doğrulayın.',
       })
-      
+
       // Kullanıcıyı giriş sayfasına yönlendir
       router.push('/login')
     } catch (error) {
@@ -110,15 +110,15 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ 
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`
         }
       })
-      
+
       if (error) throw error
-      
+
       // Google yönlendirmesi ile işlem devam edecek
     } catch (error) {
       console.error("Google kayıt hatası:", error)
@@ -140,7 +140,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Hesap oluşturun</CardTitle>
-          <CardDescription>E-posta ile veya Google hesabınızla kayıt olun</CardDescription>
+          <CardDescription>Google hesabınızla veya e-posta ile kayıt olun</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6">
@@ -153,17 +153,17 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
                     {existingAccountError} adresi ile bir hesap zaten bulunmaktadır.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={handleExistingAccountLogin}
                       className="w-full"
                     >
                       Giriş yap
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={handleForgotPassword}
                       className="w-full"
                     >
@@ -173,6 +173,21 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
                 </AlertDescription>
               </Alert>
             )}
+
+            <Button
+              variant="outline"
+              className="w-full"
+              type="button"
+              disabled={isLoading}
+              onClick={handleGoogleSignUp}
+            >
+              <Icons.google className="mr-2 h-4 w-4" />
+              Google ile kayıt ol
+            </Button>
+
+            <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
+              <span className="relative z-10 bg-background px-2 text-muted-foreground">Veya</span>
+            </div>
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -226,20 +241,6 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
               </form>
             </Form>
 
-            <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
-              <span className="relative z-10 bg-background px-2 text-muted-foreground">Veya</span>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              type="button"
-              disabled={isLoading}
-              onClick={handleGoogleSignUp}
-            >
-              <Icons.google className="mr-2 h-4 w-4" />
-              Google ile kayıt ol
-            </Button>
 
             <div className="text-center text-sm">
               Zaten bir hesabınız var mı?{" "}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllServices, countServices, createService, getServiceById, updateService, deleteService } from '@/lib/services/serviceService';
 import { createClient } from '@/lib/supabase/server';
 import { getUserById } from '@/lib/services/userService';
+import { Role } from '@prisma/client'; // Role enum'unu doğrudan Prisma'dan import et
 
 // Tüm servisleri getirme
 export async function GET(req: NextRequest) {
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Sadece admin rolündeki kullanıcılar global hizmet ekleyebilir
-    if (currentUser.role !== 'admin') {
+    if (currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Global hizmet ekleme yetkisine sahip değilsiniz' },
         { status: 403 }
@@ -77,11 +78,21 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    
+    if (!serviceData.shopId) {
+      return NextResponse.json(
+        { error: 'Dükkan ID (shopId) gerekli' },
+        { status: 400 }
+      );
+    }
 
-    // Yeni hizmet ekle (global - shopId olmadan)
+    // Yeni hizmet ekle
     const newService = await createService({
       name: serviceData.name,
-      description: serviceData.description
+      description: serviceData.description,
+      shopId: serviceData.shopId,
+      price: serviceData.price,
+      duration: serviceData.duration
     });
     
     return NextResponse.json(newService, { status: 201 });
@@ -119,7 +130,7 @@ export async function PUT(req: NextRequest) {
     }
     
     // Sadece admin rolündeki kullanıcılar global hizmet güncelleyebilir
-    if (currentUser.role !== 'admin') {
+    if (currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Global hizmet güncelleme yetkisine sahip değilsiniz' },
         { status: 403 }
@@ -190,7 +201,7 @@ export async function DELETE(req: NextRequest) {
     }
     
     // Sadece admin rolündeki kullanıcılar global hizmet silebilir
-    if (currentUser.role !== 'admin') {
+    if (currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Global hizmet silme yetkisine sahip değilsiniz' },
         { status: 403 }

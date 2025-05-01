@@ -22,9 +22,163 @@ export function ConfirmationForm() {
   const [phone, setPhone] = useState("")
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [availableTimes, setAvailableTimes] = useState<{ id: string; time: string; available: boolean }[]>([])
+  const [appointmentDetails, setAppointmentDetails] = useState({
+    date: new Date().toLocaleDateString('tr-TR'),
+    time: "14:00",
+    staff: "Personel bilgisi yükleniyor...",
+    staffRole: "Berber",
+    shopId: "",
+    employeeId: ""
+  })
 
-  // Update current time every second
+  // Mevcut randevu bilgilerini localStorage'dan yükle
   useEffect(() => {
+    // localStorage'dan mevcut seçili zamanları yükle
+    const timeId = localStorage.getItem('selectedTime');
+    const selectedDate = localStorage.getItem('selectedDate');
+    const shopId = localStorage.getItem('selectedShopId') || "";
+    const staffId = localStorage.getItem('selectedStaffId') || "";
+    
+    console.log("Onay sayfasına yüklenen veriler:", { timeId, selectedDate, shopId, staffId });
+    
+    // LocalStorage'dan gelen bilgileri direkt kaydet, sayfada gösterilmeye başlasın
+    if (shopId) {
+      localStorage.setItem('selectedShopId', shopId); // Doğru anahtar ile tekrar kaydet
+    }
+    
+    if (selectedDate) {
+      // Tarih formatına çevir
+      let formattedDate = selectedDate;
+      try {
+        // ISO formatındaysa (YYYY-MM-DD), Türkçe formatına çevir
+        if (selectedDate.includes('-')) {
+          const dateParts = selectedDate.split('-');
+          const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+          formattedDate = dateObj.toLocaleDateString('tr-TR');
+        }
+      } catch (error) {
+        console.error('Tarih formatı dönüştürme hatası:', error);
+      }
+      
+      // Tarih bilgisini localStorage'a da kaydet
+      localStorage.setItem('selectedDate', selectedDate);
+      
+      // appointmentDetails'ı güncelle
+      setAppointmentDetails(prev => ({
+        ...prev,
+        date: formattedDate,
+        shopId: shopId,
+        employeeId: staffId
+      }));
+    }
+    
+    // Seçili personel bilgilerini getir
+    if (staffId) {
+      // Eğer personel ID'si "default-" ile başlıyorsa, API çağrısı yapmayalım
+      if (staffId.startsWith('default-')) {
+        // Varsayılan personel bilgilerini kullan
+        const defaultStaffName = staffId === 'default-staff-1' ? 
+          'Berber Ustası' : staffId === 'default-staff-2' ? 
+          'Çırak' : 'Varsayılan Personel';
+        
+        const defaultStaffRole = staffId === 'default-staff-1' ? 'Berber' : 'Çalışan';
+        
+        // Personel adını güncelle
+        setAppointmentDetails(prev => ({
+          ...prev,
+          staff: defaultStaffName,
+          staffRole: defaultStaffRole
+        }));
+      } else {
+        // Önce personel API'sini deneyelim
+        fetch(`/api/staff`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Personel listesi alınamadı');
+            }
+            return response.json();
+          })
+          .then(staffList => {
+            // Personel listesinden şu anki personeli bul
+            const staff = staffList.find((s: any) => s.id === staffId);
+            
+            if (staff) {
+              // Personel bilgilerini güncelle
+              const staffName = staff.name || 'Personel';
+              const staffRole = staff.role === 'BARBER' ? 'Berber' : 'Çalışan';
+              
+              setAppointmentDetails(prev => ({
+                ...prev,
+                staff: staffName,
+                staffRole: staffRole
+              }));
+            } else {
+              throw new Error('Personel listesinde seçili personel bulunamadı');
+            }
+          })
+          .catch(error => {
+            console.error('Personel listesi alınamadı, doğrudan kullanıcı API çağrısı yapılacak:', error);
+            
+            // Alternatif olarak kullanıcı API'sini dene
+            return fetch(`/api/users/${staffId}`)
+              .then(response => {
+                if (!response.ok) {
+                  console.error(`API yanıt durumu: ${response.status}`);
+                  throw new Error(`Personel bilgileri alınamadı (${response.status})`);
+                }
+                return response.json();
+              })
+              .then(data => {
+                // Personel adını güncelle
+                const staffName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'İsimsiz Personel';
+                const staffRole = data.role === 'BARBER' ? 'Berber' : 'Çalışan';
+                
+                setAppointmentDetails(prev => ({
+                  ...prev,
+                  staff: staffName,
+                  staffRole: staffRole
+                }));
+              })
+              .catch(error => {
+                console.error('Personel bilgileri alınamadı, varsayılan değerler kullanılacak:', error);
+                
+                // API'lerden veri alınamazsa varsayılan değerler kullan
+                setAppointmentDetails(prev => ({
+                  ...prev,
+                  staff: 'Personel Bilgisi Alınamadı',
+                  staffRole: 'Berber/Çalışan'
+                }));
+              });
+          });
+      }
+    }
+    
+    if (timeId) {
+      // Örnek zaman noktaları oluştur
+      const times = [
+        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
+        "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
+        "16:00", "16:30", "17:00", "17:30", "18:00", "18:30"
+      ];
+      
+      // Zamanları taşıyan objeleri oluştur
+      const timeObjects = times.map((time, index) => ({
+        id: (index + 1).toString(),
+        time,
+        available: true
+      }));
+      
+      setAvailableTimes(timeObjects);
+      
+      // Seçili zamanı bul ve ayarla
+      const selectedTime = timeObjects.find(t => t.id === timeId)?.time || "14:00";
+      setAppointmentDetails(prev => ({
+        ...prev,
+        time: selectedTime
+      }));
+    }
+    
     const timer = setInterval(() => {
       setCurrentTime(new Date())
     }, 1000)
@@ -39,22 +193,73 @@ export function ConfirmationForm() {
     second: "2-digit",
   })
 
-  // Example appointment details (in a real app, these would come from state or context)
-  const appointmentDetails = {
-    date: "15 Temmuz 2023",
-    time: "14:00",
-    staff: "Ahmet Yılmaz",
-    staffRole: "Berber",
-    shopId: "1",
-    employeeId: "2"
-  }
-
   // Function to handle confirm button click
   const handleConfirm = async () => {
     if (name && phone && agreeToTerms) {
       setIsLoading(true)
 
       try {
+        // Local storage'dan verileri al
+        const storedShopId = localStorage.getItem('selectedShopId');
+        const storedStaffId = localStorage.getItem('selectedStaffId'); // employeeId yerine selectedStaffId kullanıyoruz
+        const storedDate = localStorage.getItem('selectedDate');
+        const storedTime = localStorage.getItem('selectedTime');
+        
+        console.log('Randevu oluşturma verileri:', { storedShopId, storedStaffId, storedDate, storedTime });
+        
+        // Eksik veri kontrolü
+        const missingFields = [];
+        if (!storedShopId) missingFields.push('Dükkan');
+        if (!storedStaffId) missingFields.push('Personel');
+        if (!storedDate) missingFields.push('Tarih');
+        if (!storedTime) missingFields.push('Saat');
+        
+        if (missingFields.length > 0) {
+          throw new Error(`Randevu bilgileri eksik: ${missingFields.join(', ')}. Lütfen tüm alanları doldurun.`);
+        }
+        
+        // Tarih/Zaman doğru formata dönüştür 
+        const appointmentDate = storedDate || appointmentDetails.date;
+        
+        // Zaman bilgisi oluştur (12:30 gibi)
+        let timeValue = appointmentDetails.time; // Varsayılan değer
+        
+        if (storedTime) {
+          // StoredTime değeri ID olduğu için mevcut zaman listesinden gerçek saat değerini bulalım
+          const selectedTimeObject = availableTimes.find(t => t.id === storedTime);
+          if (selectedTimeObject) {
+            timeValue = selectedTimeObject.time;
+          } else {
+            console.warn('Seçilen saat bulunamadı, varsayılan değer kullanılacak:', timeValue);
+          }
+        }
+        
+        // ISO formatında tarih/zaman oluştur: "2025-05-01T14:30:00"
+        // Tarih formatını kontrol et - localStorage'dan gelen değer genellikle "YYYY-MM-DD" formatında
+        const formattedDate = appointmentDate.includes('-') 
+          ? appointmentDate // Zaten doğru formattaysa kullan
+          : new Date(appointmentDate).toISOString().split('T')[0]; // Değilse, dönüştür
+        
+        // Zaman formatını kontrol ve birleştir
+        const appointmentDateTime = new Date(`${formattedDate}T${timeValue}:00`);
+        
+        // Geçerli bir tarih olduğunu kontrol et
+        if (isNaN(appointmentDateTime.getTime())) {
+          throw new Error(`Geçersiz tarih/saat formatı: ${formattedDate} ${timeValue}`);
+        }
+        
+        // Bitiş zamanını hesapla (30 dakika ekle)
+        const endDateTime = new Date(appointmentDateTime.getTime() + 30 * 60000);
+        
+        console.log("Randevu verileri:", {
+          shopId: storedShopId,
+          staffId: storedStaffId,
+          date: formattedDate,
+          time: appointmentDateTime.toISOString(),
+          endTime: endDateTime.toISOString(),
+          notes,
+        });
+        
         // API çağrısı yap
         const response = await fetch('/api/appointments', {
           method: 'POST',
@@ -62,29 +267,46 @@ export function ConfirmationForm() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            shopId: localStorage.getItem('selectedShopId') || appointmentDetails.shopId,
-            employeeId: localStorage.getItem('selectedEmployeeId') || appointmentDetails.employeeId,
-            date: new Date(appointmentDetails.date),
-            time: new Date(`${appointmentDetails.date} ${appointmentDetails.time}`),
-            endTime: new Date(new Date(`${appointmentDetails.date} ${appointmentDetails.time}`).getTime() + 30 * 60000), // 30 dakika ekle
+            shopId: storedShopId,
+            staffId: storedStaffId, // Çalışan ID'sini de gönderiyor olabiliriz (backend yapısına göre)
+            date: formattedDate, 
+            time: appointmentDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
             notes,
             customerName: name,
             customerPhone: phone
           })
-        })
+        });
 
         if (!response.ok) {
-          throw new Error('Randevu oluşturulurken bir hata oluştu');
+          const errorData = await response.json();
+          console.error('API hata yanıtı:', errorData);
+          throw new Error(errorData.error || 'Randevu oluşturulurken bir hata oluştu');
         }
 
         const data = await response.json();
         console.log("Randevu oluşturuldu:", data);
 
-        // Navigate to success page
+        // Başarılı sonuç sayfasına yönlendir
         router.push("/appointments/success");
       } catch (error) {
-        console.error("Error creating appointment:", error);
-        // Hata durumunda kullanıcıya bilgi verebiliriz
+        console.error("Randevu oluşturma hatası:", error);
+        
+        // Kullanıcıya anlaşılır bir hata mesajı göster
+        let errorMessage = 'Randevu oluşturulurken bir hata oluştu';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Eğer hata 401 veya 403 ise, oturum açma sayfasına yönlendir
+          if (error.message.includes('401') || error.message.includes('403')) {
+            alert('Bu işlemi yapabilmek için oturum açmanız gerekiyor. Yönlendiriliyorsunuz...');
+            setTimeout(() => router.push('/login'), 1500);
+            return;
+          }
+        }
+        
+        alert(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -180,11 +402,11 @@ export function ConfirmationForm() {
                   İptal politikasını kabul ediyorum
                 </Label>
                 <Popover>
-                  <PopoverTrigger>
-                    <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full p-0">
+                  <PopoverTrigger asChild>
+                    <div className="cursor-pointer inline-flex items-center justify-center rounded-full h-5 w-5 p-0 hover:bg-accent">
                       <Info className="h-3 w-3" />
                       <span className="sr-only">İptal politikası hakkında bilgi</span>
-                    </Button>
+                    </div>
                   </PopoverTrigger>
                   <PopoverContent>
                     <div className="space-y-2">

@@ -31,7 +31,7 @@ export async function GET(
     }
     
     if (session.user.id !== userId && 
-        !['admin', 'barber'].includes(currentUserDetails.role)) {
+        !['ADMIN', 'BARBER'].includes(currentUserDetails.role)) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -53,7 +53,7 @@ export async function GET(
     const status = url.searchParams.get('status');
     
     // Kullanıcının randevularını getir
-    const appointments = await getUserAppointments(userId, user.role);
+    const appointments = await getUserAppointments(userId);
 
     return NextResponse.json({
       appointments,

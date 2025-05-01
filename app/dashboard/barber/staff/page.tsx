@@ -25,6 +25,38 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Role } from "@prisma/client"
+
+// Tür tanımlamaları
+interface WorkingHour {
+  start: string;
+  end: string;
+  isWorking: boolean;
+}
+
+interface WorkingHours {
+  monday: WorkingHour;
+  tuesday: WorkingHour;
+  wednesday: WorkingHour;
+  thursday: WorkingHour;
+  friday: WorkingHour;
+  saturday: WorkingHour;
+  sunday: WorkingHour;
+}
+
+interface StaffMember {
+  id: string;
+  name: string;
+  photo: string;
+  expertise: string;
+  status: "active" | "leave";
+  email: string;
+  phone: string;
+  workingHours: WorkingHours;
+  permissionLevel: string;
+  address?: string;
+  hireDate?: string;
+}
 
 // Expertise options
 const expertiseOptions = ["Saç Kesimi", "Sakal Tıraşı", "Saç Boyama", "Saç Bakımı", "Fön", "Cilt Bakımı"]
@@ -41,13 +73,13 @@ const daysOfWeek = {
 }
 
 export default function StaffManagementPage() {
-  const [selectedStaff, setSelectedStaff] = useState(null)
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isAddEditOpen, setIsAddEditOpen] = useState(false)
   const [editMode, setEditMode] = useState(false)
-  const [staffData, setStaffData] = useState([])
+  const [staffData, setStaffData] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Personel verilerini API'den çekme
   useEffect(() => {
@@ -78,14 +110,20 @@ export default function StaffManagementPage() {
         
         const employees = await response.json()
         
+        // Veri yoksa boş dizi döndür
+        if (!employees || employees.length === 0) {
+          setStaffData([]);
+          return;
+        }
+        
         // API'den gelen verileri UI için uygun formata dönüştürme
-        const formattedStaff = employees.map(employee => ({
+        const formattedStaff: StaffMember[] = employees.map((employee: any) => ({
           id: employee.id,
-          name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim(),
+          name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || "İsimsiz Personel",
           photo: employee.profileImage || "/placeholder.svg",
           expertise: employee.expertise || "Genel Berber",
           status: employee.isActive ? "active" : "leave",
-          email: employee.email,
+          email: employee.email || "-",
           phone: employee.phone || "-",
           workingHours: employee.workingHours || {
             monday: { start: "09:00", end: "18:00", isWorking: true },
@@ -96,15 +134,16 @@ export default function StaffManagementPage() {
             saturday: { start: "10:00", end: "16:00", isWorking: true },
             sunday: { start: "10:00", end: "14:00", isWorking: false },
           },
-          permissionLevel: employee.role.toLowerCase(),
+          permissionLevel: employee.role ? employee.role.toLowerCase() : "employee",
           address: employee.address || "-",
           hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : "-"
         }))
         
         setStaffData(formattedStaff)
-      } catch (error) {
+      } catch (error: any) {
         console.error("Personel verileri yüklenirken hata:", error)
-        setError(error.message)
+        setError(error.message || "Bilinmeyen bir hata oluştu")
+        setStaffData([])  // Hata durumunda boş dizi
       } finally {
         setLoading(false)
       }
@@ -114,13 +153,13 @@ export default function StaffManagementPage() {
   }, [])
 
   // Function to handle opening staff details
-  const handleOpenDetails = (staff) => {
+  const handleOpenDetails = (staff: StaffMember) => {
     setSelectedStaff(staff)
     setIsDetailOpen(true)
   }
 
   // Function to handle opening add/edit modal
-  const handleOpenAddEdit = (staff = null) => {
+  const handleOpenAddEdit = (staff: StaffMember | null = null) => {
     if (staff) {
       setSelectedStaff(staff)
       setEditMode(true)
@@ -132,7 +171,7 @@ export default function StaffManagementPage() {
   }
 
   // Function to handle staff status change
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (id: string, newStatus: "active" | "leave") => {
     try {
       const response = await fetch(`/api/users/${id}`, {
         method: 'PATCH',
@@ -192,7 +231,7 @@ export default function StaffManagementPage() {
                         <CardDescription>{staff.expertise}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant={staff.status === "active" ? "success" : "secondary"}>
+                    <Badge variant={staff.status === "active" ? "default" : "secondary"} className={staff.status === "active" ? "bg-green-500" : ""}>
                       {staff.status === "active" ? "Aktif" : "İzinli"}
                     </Badge>
                   </div>

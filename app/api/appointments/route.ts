@@ -74,10 +74,10 @@ export async function POST(request: Request) {
     }
     
     const body = await request.json();
-    const { shopId, employeeId, date, time, endTime, notes } = body;
+    const { shopId, date, time, endTime, notes } = body;
     
     // Gerekli alanların kontrolü
-    if (!shopId || !employeeId || !date || !time || !endTime) {
+    if (!shopId || !date || !time || !endTime) {
       return NextResponse.json({ error: 'Tüm zorunlu alanlar doldurulmalıdır' }, { status: 400 });
     }
     
@@ -85,7 +85,6 @@ export async function POST(request: Request) {
     const appointment = await createAppointment({
       shopId,
       userId: user.id,
-      employeeId,
       date: new Date(date),
       time: new Date(time),
       endTime: new Date(endTime),

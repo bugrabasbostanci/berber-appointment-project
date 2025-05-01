@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 
 // Time slots for daily view
 const timeSlots = [
@@ -15,21 +14,47 @@ const timeSlots = [
   "17:00", "17:30", "18:00"
 ]
 
+// Tip tanımlamaları
+type AppointmentType = {
+  id: string
+  time: string
+  duration: number
+  customer: {
+    name: string
+    avatar: string
+    initials: string
+    phone: string
+  }
+  service: string
+  staff: string
+}
+
+type StaffMemberType = {
+  id: string
+  name: string
+  role: string
+}
+
+type MonthlyDataType = {
+  day: number
+  appointments: number
+}
+
 export default function AppointmentsCalendarPage() {
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [view, setView] = useState("day") // "day", "week", "month"
-  const [appointments, setAppointments] = useState([])
-  const [staffMembers, setStaffMembers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [monthlyData, setMonthlyData] = useState([])
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [view, setView] = useState<"day" | "week" | "month">("day")
+  const [appointments, setAppointments] = useState<AppointmentType[]>([])
+  const [staffMembers, setStaffMembers] = useState<StaffMemberType[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [monthlyData, setMonthlyData] = useState<MonthlyDataType[]>([])
 
   // Tarih formatları için yardımcı fonksiyonlar
-  const formatDate = (date) => {
+  const formatDate = (date: Date): string => {
     return date.toISOString().split('T')[0]
   }
 
-  const formatDisplayDate = (date) => {
+  const formatDisplayDate = (date: Date): string => {
     return date.toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'long',
@@ -67,22 +92,65 @@ export default function AppointmentsCalendarPage() {
         
         const appointmentsData = await response.json()
         
-        // API'den gelen verileri UI için uygun formata dönüştürme
-        const formattedAppointments = appointmentsData.map(apt => ({
-          id: apt.id,
-          time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-          duration: Math.round((new Date(apt.endTime) - new Date(apt.time)) / (1000 * 60)),
-          customer: {
-            name: `${apt.customer.firstName || ''} ${apt.customer.lastName || ''}`.trim(),
-            avatar: apt.customer.profileImage || "/placeholder.svg",
-            initials: getInitials(`${apt.customer.firstName || ''} ${apt.customer.lastName || ''}`.trim()),
-            phone: apt.customer.phone || "-",
-          },
-          service: apt.serviceName || "Belirtilmemiş",
-          staff: `${apt.employee.firstName || ''} ${apt.employee.lastName || ''}`.trim(),
-        }))
+        console.log("API'den gelen randevu verileri:", appointmentsData)
         
-        setAppointments(formattedAppointments)
+        // Veri yoksa, boş bir dizi döndür
+        if (!appointmentsData || appointmentsData.length === 0) {
+          setAppointments([]);
+        } else {
+          // API'den gelen verileri UI için uygun formata dönüştürme
+          const formattedAppointments = appointmentsData.map((apt: any) => {
+            try {
+              // Şema bilgilerine uygun olarak ilişkisel verileri al
+              
+              // 1. User bilgilerini al
+              const userName = apt.user 
+                ? `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim() 
+                : "Bilinmeyen Müşteri"
+              
+              // 2. Kullanıcı telefon bilgisini al
+              const userPhone = apt.user?.phone || "-"
+              
+              // 3. Profil resmi için varsayılan değer kullan (şemada profil resmi yok)
+              const userAvatar = "/placeholder.svg"
+              
+              // 4. Randevu süresi hesapla
+              const startTime = new Date(apt.time).getTime()
+              const endTime = new Date(apt.endTime).getTime()
+              const duration = Math.round((endTime - startTime) / (1000 * 60))
+              
+              // 5. Not alanından servis bilgisi çıkar veya varsayılan değer kullan
+              const serviceName = apt.notes?.includes("Servis:") 
+                ? apt.notes.split("Servis:")[1].trim().split("\n")[0] 
+                : "Belirtilmemiş"
+              
+              // 6. Personel bilgisi al - şemaya göre direkt çalışan ilişkisi yok
+              // Berber/dükkan sahibi bilgisi kullanılabilir
+              const staffName = apt.shop?.owner
+                ? `${apt.shop.owner.firstName || ''} ${apt.shop.owner.lastName || ''}`.trim()
+                : "Atanmamış"
+              
+              return {
+                id: apt.id,
+                time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                duration,
+                customer: {
+                  name: userName,
+                  avatar: userAvatar,
+                  initials: getInitials(userName),
+                  phone: userPhone,
+                },
+                service: serviceName,
+                staff: staffName,
+              }
+            } catch (e) {
+              console.error("Randevu verisi işlenirken hata:", e, apt)
+              return null;
+            }
+          }).filter((appointment: AppointmentType | null): appointment is AppointmentType => appointment !== null);
+          
+          setAppointments(formattedAppointments);
+        }
         
         // Dükkanın çalışanlarını getirme
         const staffResponse = await fetch(`/api/shops/${shopId}/employees`)
@@ -92,23 +160,40 @@ export default function AppointmentsCalendarPage() {
         
         const staffData = await staffResponse.json()
         
-        // Personel verilerini UI için formatlama
-        const formattedStaff = staffData.map(staff => ({
-          id: staff.id,
-          name: `${staff.firstName || ''} ${staff.lastName || ''}`.trim(),
-          role: staff.role === "BARBER" ? "Berber" : "Çalışan"
-        }))
-        
-        setStaffMembers(formattedStaff)
+        // Veri yoksa, boş bir dizi döndür
+        if (!staffData || staffData.length === 0) {
+          setStaffMembers([]);
+        } else {
+          // Personel verilerini UI için formatlama
+          const formattedStaff = staffData.map((staff: any) => {
+            try {
+              const staffName = `${staff.firstName || ''} ${staff.lastName || ''}`.trim() || "İsimsiz Personel";
+              
+              return {
+                id: staff.id || "",
+                name: staffName,
+                role: staff.role === "BARBER" ? "Berber" : 
+                      staff.role === "ADMIN" ? "Yönetici" : "Çalışan"
+              }
+            } catch (e) {
+              console.error("Personel verisi işlenirken hata:", e, staff)
+              return null;
+            }
+          }).filter((staff: StaffMemberType | null): staff is StaffMemberType => staff !== null);
+          
+          setStaffMembers(formattedStaff);
+        }
         
         // Aylık görünüm verilerini getirme
         if (view === "month") {
           await fetchMonthlyData(shopId, selectedDate)
         }
         
-      } catch (error) {
+      } catch (error: any) {
         console.error("Randevu verileri yüklenirken hata:", error)
         setError(error.message)
+        setAppointments([]);
+        setStaffMembers([]);
       } finally {
         setLoading(false)
       }
@@ -118,7 +203,7 @@ export default function AppointmentsCalendarPage() {
   }, [selectedDate, view])
   
   // Aylık görünüm verilerini getiren fonksiyon
-  const fetchMonthlyData = async (shopId, date) => {
+  const fetchMonthlyData = async (shopId: string, date: Date) => {
     const year = date.getFullYear()
     const month = date.getMonth()
     const startDate = new Date(year, month, 1)
@@ -134,9 +219,9 @@ export default function AppointmentsCalendarPage() {
       const stats = await response.json()
       
       // API verisini takvim görünümü için formatlama
-      const days = []
+      const days: MonthlyDataType[] = []
       for (let day = 1; day <= endDate.getDate(); day++) {
-        const dayData = stats.find(item => new Date(item.date).getDate() === day) || { count: 0 }
+        const dayData = stats.find((item: any) => new Date(item.date).getDate() === day) || { count: 0 }
         days.push({
           day,
           appointments: dayData.count
@@ -146,11 +231,20 @@ export default function AppointmentsCalendarPage() {
       setMonthlyData(days)
     } catch (error) {
       console.error("Aylık veriler yüklenirken hata:", error)
+      // Boş veri döndür
+      const days: MonthlyDataType[] = []
+      for (let day = 1; day <= endDate.getDate(); day++) {
+        days.push({
+          day,
+          appointments: 0
+        })
+      }
+      setMonthlyData(days)
     }
   }
   
   // İsimlerin baş harflerini alma
-  const getInitials = (name) => {
+  const getInitials = (name: string): string => {
     return name
       .split(' ')
       .map(n => n[0])
@@ -190,7 +284,7 @@ export default function AppointmentsCalendarPage() {
           <h1 className="text-2xl font-bold">Randevu Takvimi</h1>
           <p className="text-muted-foreground">Randevuları görüntüle ve yönet</p>
         </div>
-        <Tabs defaultValue="day" value={view} onValueChange={setView}>
+        <Tabs defaultValue="day" value={view} onValueChange={(value) => setView(value as "day" | "week" | "month")}>
           <TabsList>
             <TabsTrigger value="day">Gün</TabsTrigger>
             <TabsTrigger value="week">Hafta</TabsTrigger>
@@ -240,7 +334,15 @@ export default function AppointmentsCalendarPage() {
 }
 
 // Günlük görünüm bileşeni
-function DailyView({ appointments, timeSlots, staffMembers }) {
+function DailyView({ 
+  appointments, 
+  timeSlots, 
+  staffMembers 
+}: { 
+  appointments: AppointmentType[]
+  timeSlots: string[]
+  staffMembers: StaffMemberType[]
+}) {
   return (
     <div className="border rounded-md">
       <div className="grid grid-cols-[auto_1fr] h-full">
@@ -304,7 +406,13 @@ function DailyView({ appointments, timeSlots, staffMembers }) {
 }
 
 // Aylık görünüm bileşeni
-function MonthlyView({ selectedDate, monthlyData }) {
+function MonthlyView({ 
+  selectedDate, 
+  monthlyData 
+}: { 
+  selectedDate: Date
+  monthlyData: MonthlyDataType[]
+}) {
   // Ayın ilk gününü ve ay sonunu bulma
   const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
   const lastDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0)

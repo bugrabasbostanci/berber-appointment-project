@@ -3,6 +3,7 @@ import { getAvailabilityById, updateAvailability, deleteAvailability } from '@/l
 import { getUserById } from '@/lib/services/userService';
 import { getShopById } from '@/lib/services/shopService';
 import { createClient } from '@/lib/supabase/server';
+import { Role } from '@prisma/client';
 
 // Belirli bir müsaitlik durumunu getirme
 export async function GET(
@@ -82,9 +83,9 @@ export async function PATCH(
     }
     
     // Kullanıcı dükkanın sahibi, ilgili çalışan veya admin olmalı
+    // Profillere erişim olmadığı için şu an sadece dükkan sahibi ve admin yetkilendirmesi yapabiliyoruz
     if (shop.ownerId !== session.user.id && 
-        currentUser.role !== 'admin' && 
-        availability.employeeId !== session.user.id) {
+        currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -162,7 +163,7 @@ export async function DELETE(
     }
     
     // Kullanıcı dükkanın sahibi veya admin olmalı
-    if (shop.ownerId !== session.user.id && currentUser.role !== 'admin') {
+    if (shop.ownerId !== session.user.id && currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }

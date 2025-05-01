@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getShopAvailability, getAvailableEmployeesForDate, getTeamCalendar } from '@/lib/services/availabilityService';
+import { getShopAvailability, getAvailableUsersForDate, getShopCalendar } from '@/lib/services/availabilityService';
 import { getShopById } from '@/lib/services/shopService';
 
 // Dükkanın müsaitlik durumlarını getirme
@@ -8,7 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const shopId = params.id;
+    const { id } = await params;
+    const shopId = id;
     
     // Dükkanın var olup olmadığını kontrol et
     const shop = await getShopById(shopId);
@@ -24,18 +25,18 @@ export async function GET(
     const url = new URL(req.url);
     const startDateParam = url.searchParams.get('startDate');
     const endDateParam = url.searchParams.get('endDate');
-    const employeeId = url.searchParams.get('employeeId') || undefined;
+    const userId = url.searchParams.get('userId') || undefined;
     const dateParam = url.searchParams.get('date');
     const view = url.searchParams.get('view');
     
-    // Belirli bir tarih için müsait çalışanları getir
+    // Belirli bir tarih için müsait kullanıcıları getir
     if (dateParam) {
       const date = new Date(dateParam);
-      const availableEmployees = await getAvailableEmployeesForDate(shopId, date);
+      const availableUsers = await getAvailableUsersForDate(shopId, date);
       
       return NextResponse.json({
         date: dateParam,
-        availableEmployees
+        availableUsers
       });
     }
     
@@ -44,7 +45,7 @@ export async function GET(
       const startDate = new Date(startDateParam);
       const endDate = new Date(endDateParam);
       
-      const teamCalendar = await getTeamCalendar(shopId, startDate, endDate);
+      const teamCalendar = await getShopCalendar(shopId, startDate, endDate);
       
       return NextResponse.json(teamCalendar);
     }
@@ -55,8 +56,7 @@ export async function GET(
     
     const availabilities = await getShopAvailability(shopId, {
       startDate,
-      endDate,
-      employeeId
+      endDate
     });
     
     return NextResponse.json(availabilities);

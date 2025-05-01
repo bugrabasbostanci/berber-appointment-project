@@ -2,18 +2,44 @@
 
 import { useState, useEffect } from "react"
 import { Calendar, Clock, Scissors, User } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Loader2 } from "lucide-react"
+
+// Randevu tipi tanımlaması
+interface Appointment {
+  id: string;
+  date: string;
+  time: string;
+  staff: string;
+  service: string;
+  shopName: string;
+  reviewed?: boolean;
+}
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState({
+  const [appointments, setAppointments] = useState<{
+    upcoming: Appointment[];
+    past: Appointment[];
+  }>({
     upcoming: [],
     past: []
   })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("upcoming")
 
   // Randevu verilerini API'den çekme
@@ -24,13 +50,16 @@ export default function AppointmentsPage() {
         setError(null)
         
         // Gelecek randevuları getir
-        const response = await fetch('/api/appointments?past=false')
+        const response = await fetch('/api/appointments?past=false', {
+          cache: 'no-store', // Önbelleğe alma, her zaman güncel veri al
+          next: { revalidate: 0 } // SSR/ISR durumunda yeni veri al
+        });
         
         // API'den gelen tüm yanıtları kabul et
         const appointmentsData = await response.json().catch(() => []);
         
         // API verilerini UI için formatla (null kontrolü eklendi)
-        const formatAppointment = (apt) => {
+        const formatAppointment = (apt: any): Appointment | null => {
           if (!apt) return null;
           
           return {
@@ -44,14 +73,15 @@ export default function AppointmentsPage() {
               hour: '2-digit',
               minute: '2-digit'
             }) : "-",
-            staff: apt.employee ? `${apt.employee.firstName || ''} ${apt.employee.lastName || ''}`.trim() : "-",
-            service: apt.serviceName || "Belirtilmemiş",
-            shopName: apt.shop?.name || "Belirtilmemiş"
+            staff: apt.user ? `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim() : "-",
+            service: apt.service?.name || "Belirtilmemiş",
+            shopName: apt.shop?.name || "Belirtilmemiş",
+            reviewed: Boolean(apt.review)
           }
         }
         
         const formattedAppointments = Array.isArray(appointmentsData)
-          ? appointmentsData.map(formatAppointment).filter(Boolean)
+          ? appointmentsData.map(formatAppointment).filter(Boolean) as Appointment[]
           : [];
         
         setAppointments({
@@ -59,8 +89,8 @@ export default function AppointmentsPage() {
           past: []
         })
         
-      } catch (error) {
-        console.error("Randevu verileri yüklenirken hata:", error)
+      } catch (err) {
+        console.error("Randevu verileri yüklenirken hata:", err)
         // Hata olsa bile boş verilerle devam et
         setAppointments({
           upcoming: [],
@@ -136,11 +166,42 @@ export default function AppointmentsPage() {
 }
 
 // Randevu kart bileşeni
-function AppointmentCard({ appointment, type }) {
+function AppointmentCard({ appointment, type }: { appointment: Appointment; type: 'upcoming' | 'past' }) {
   // Null kontrolü ekle
   if (!appointment) {
     return null;
   }
+  
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const router = useRouter();
+  
+  // Randevu iptal işlevi
+  const cancelAppointment = async () => {
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      
+      const response = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Randevu iptal edilemedi');
+      }
+      
+      // Dialog'u kapat ve sayfayı yenile
+      setShowDeleteDialog(false);
+      router.refresh(); // Sayfayı yenileyerek güncel verileri getir
+    } catch (error) {
+      console.error('Randevu iptal hatası:', error);
+      setDeleteError(error instanceof Error ? error.message : 'Randevu iptal edilemedi');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   
   return (
     <Card className="overflow-hidden">
@@ -178,18 +239,61 @@ function AppointmentCard({ appointment, type }) {
           {type === "upcoming" && (
             <div className="flex justify-end mt-4 gap-2">
               <Button variant="outline" asChild>
-                <a href={`/appointments/${appointment.id}/reschedule`}>Tarih Değiştir</a>
+                <a href={`/dashboard/customer/appointments/reschedule?id=${appointment.id}`}>Tarih Değiştir</a>
               </Button>
-              <Button variant="destructive" asChild>
-                <a href={`/appointments/${appointment.id}/cancel`}>İptal Et</a>
+              <Button 
+                variant="destructive" 
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    İptal Ediliyor
+                  </>
+                ) : 'İptal Et'}
               </Button>
+              
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Randevu İptal Edilecek</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Bu randevuyu iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {deleteError && (
+                    <div className="p-3 my-2 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {deleteError}
+                    </div>
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Vazgeç</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => {
+                        e.preventDefault(); // Dialogu kapatmayı engelle
+                        cancelAppointment();
+                      }}
+                      disabled={isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          İptal Ediliyor...
+                        </>
+                      ) : "İptal Et"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
           
           {type === "past" && !appointment.reviewed && (
             <div className="flex justify-end mt-4">
               <Button variant="outline" asChild>
-                <a href={`/appointments/${appointment.id}/review`}>Değerlendir</a>
+                <a href={`/dashboard/customer/appointments/review?id=${appointment.id}`}>Değerlendir</a>
               </Button>
             </div>
           )}

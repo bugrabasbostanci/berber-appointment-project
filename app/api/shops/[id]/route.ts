@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getShopById, updateShop, deleteShop } from '@/lib/services/shopService';
 import { getUserById } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
+import { Role } from '@prisma/client';
 
 // Belirli bir dükkanın bilgilerini getirme
 export async function GET(
@@ -71,7 +72,7 @@ export async function PATCH(
     }
     
     // Kullanıcı dükkanın sahibi veya admin olmalı
-    if (shop.ownerId !== session.user.id && currentUser.role !== 'admin') {
+    if (shop.ownerId !== session.user.id && currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -134,7 +135,7 @@ export async function DELETE(
     }
     
     // Kullanıcı dükkanın sahibi veya admin olmalı
-    if (shop.ownerId !== session.user.id && currentUser.role !== 'admin') {
+    if (shop.ownerId !== session.user.id && currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }

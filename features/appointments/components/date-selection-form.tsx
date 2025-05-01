@@ -10,20 +10,45 @@ import { cn } from "@/lib/utils"
 import { AppointmentSteps } from "./appointment-steps"
 import { Separator } from "@/components/ui/separator"
 
+// Tip tanımlamalarını dışa çıkaralım
+type AvailabilityData = {
+  date: string;
+  timeSlots: Record<string, any>;
+  isAvailable: boolean;
+  shop?: {
+    id: string;
+    name: string;
+  };
+  profiles?: Array<{
+    user: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+    }
+  }>;
+};
+
+type AvailabilityState = {
+  high: number[];
+  medium: number[];
+  low: number[];
+  closed: number[];
+};
+
 export function DateSelectionForm() {
   const router = useRouter()
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [today] = useState<Date>(new Date())
-  const [availabilityData, setAvailabilityData] = useState({
+  const [availabilityData, setAvailabilityData] = useState<AvailabilityState>({
     high: [],
     medium: [],
     low: [],
     closed: [0], // Sundays will be added dynamically
   })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [shopId, setShopId] = useState(null)
+  const [error, setError] = useState<string | null>(null)
+  const [shopId, setShopId] = useState<string | null>(null)
 
   // Müsaitlik verilerini API'den çekme
   useEffect(() => {
@@ -43,8 +68,8 @@ export function DateSelectionForm() {
           throw new Error('Hiç dükkan bulunamadı')
         }
         
-        const shopId = shopData.shops[0].id
-        setShopId(shopId)
+        const selectedShopId = shopData.shops[0].id
+        setShopId(selectedShopId)
         
         // Ay için formatlı tarihler
         const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
@@ -52,7 +77,7 @@ export function DateSelectionForm() {
         
         // Dükkanın müsaitlik durumunu getir
         const availabilityResponse = await fetch(
-          `/api/shops/${shopId}/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}`
+          `/api/shops/${selectedShopId}/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}`
         )
         
         if (!availabilityResponse.ok) {
@@ -62,28 +87,46 @@ export function DateSelectionForm() {
         const availabilityResponseData = await availabilityResponse.json()
         
         // API verisini müsaitlik seviyelerine ayır
-        const highAvailabilityDays = []
-        const mediumAvailabilityDays = []
-        const lowAvailabilityDays = []
-        
-        availabilityResponseData.forEach(dayData => {
-          const date = new Date(dayData.date)
-          const day = date.getDate()
-          
-          // Doluluk oranına göre sınıflandır
-          const availableSlots = dayData.availableSlots || 0
-          const totalSlots = dayData.totalSlots || 20 // varsayılan değer
-          
-          const availabilityPercentage = (availableSlots / totalSlots) * 100
-          
-          if (availabilityPercentage >= 70) {
-            highAvailabilityDays.push(day)
-          } else if (availabilityPercentage >= 30) {
-            mediumAvailabilityDays.push(day)
-          } else {
-            lowAvailabilityDays.push(day)
-          }
-        })
+        const highAvailabilityDays: number[] = []
+        const mediumAvailabilityDays: number[] = []
+        const lowAvailabilityDays: number[] = []
+
+        // Prisma şemanızdaki yapıya göre veriyi dönüştürüyoruz
+        if (Array.isArray(availabilityResponseData)) {
+          availabilityResponseData.forEach((dayData: AvailabilityData) => {
+            if (!dayData || !dayData.date || !dayData.isAvailable) return;
+            
+            const date = new Date(dayData.date);
+            const day = date.getDate();
+            
+            // Güncellenmiş şemaya göre timeSlots değerini kullanarak müsaitlik hesaplama
+            if (!dayData.timeSlots) return;
+            
+            const timeSlots = dayData.timeSlots || {};
+            const timeSlotKeys = Object.keys(timeSlots);
+            
+            // Kullanılabilir slot sayısını hesapla
+            // Yeni şemaya göre available olan slotları sayalım
+            const availableSlots = timeSlotKeys.filter(slot => 
+              typeof timeSlots[slot] === 'object' && 
+              timeSlots[slot].available === true
+            ).length;
+            
+            const totalSlots = timeSlotKeys.length || 20; // varsayılan değer
+            
+            const availabilityPercentage = totalSlots > 0 
+              ? (availableSlots / totalSlots) * 100
+              : 0;
+            
+            if (availabilityPercentage >= 70) {
+              highAvailabilityDays.push(day);
+            } else if (availabilityPercentage >= 30) {
+              mediumAvailabilityDays.push(day);
+            } else {
+              lowAvailabilityDays.push(day);
+            }
+          });
+        }
         
         setAvailabilityData({
           high: highAvailabilityDays,
@@ -92,9 +135,14 @@ export function DateSelectionForm() {
           closed: [0] // Pazar günleri kapalı
         })
         
-      } catch (error) {
-        console.error("Müsaitlik verileri yüklenirken hata:", error)
-        setError(error.message)
+      } catch (caughtError) {
+        const errorMessage = caughtError instanceof Error 
+          ? caughtError.message 
+          : 'Bilinmeyen bir hata oluştu';
+        
+        console.error("Müsaitlik verileri yüklenirken hata:", caughtError);
+        setError(errorMessage);
+        
         // Hata durumunda varsayılan müsaitlik verisi kullan
         setAvailabilityData({
           high: [1, 5, 9, 13, 17, 21, 25, 29],
@@ -112,10 +160,11 @@ export function DateSelectionForm() {
 
   // Function to handle continue button click
   const handleContinue = () => {
-    if (date) {
+    if (date && shopId) {
       // Seçilen tarihi localStorage'a kaydet
-      localStorage.setItem('appointmentDate', date.toISOString())
-      localStorage.setItem('appointmentShopId', shopId)
+      localStorage.setItem('selectedDate', date.toISOString().split('T')[0]) // YYYY-MM-DD formatında
+      localStorage.setItem('selectedShopId', shopId)
+      console.log(`Tarih seçim formundan kaydedilen değerler: tarih=${date.toISOString().split('T')[0]}, dükkan=${shopId}`);
       
       router.push("/appointments/new/time")
     }

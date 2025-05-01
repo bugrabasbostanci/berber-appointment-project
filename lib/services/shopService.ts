@@ -19,13 +19,27 @@ export async function createShop(shopData: {
 
 // ID'ye göre dükkan getirme
 export async function getShopById(id: string): Promise<Shop | null> {
-  return prisma.shop.findUnique({
-    where: { id },
-    include: {
-      owner: true,
-      services: true
+  console.log(`getShopById çağrıldı, aranan ID: ${id}`);
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { id },
+      include: {
+        owner: true,
+        services: true
+      }
+    });
+    
+    if (shop) {
+      console.log(`Dükkan bulundu: ${shop.name}, sahibi: ${shop.owner?.firstName || 'İsimsiz'}`);
+    } else {
+      console.log(`Dükkan bulunamadı: ${id}`);
     }
-  });
+    
+    return shop;
+  } catch (error) {
+    console.error(`Dükkan arama hatası (ID: ${id}):`, error);
+    return null;
+  }
 }
 
 // Dükkan güncelleme
@@ -110,42 +124,35 @@ export async function countShops(params: {
   return prisma.shop.count({ where });
 }
 
-// Dükkana çalışan ekleme
-export async function addEmployeeToShop(
+// Dükkana çalışan ekleme - Bu fonksiyon şemada 'employees' ilişkisi olmadığı için güncellendi
+// Owner ilişkisini güncelleme olarak değiştirildi
+export async function updateShopOwner(
   shopId: string, 
-  employeeId: string
+  userId: string
 ): Promise<Shop> {
   return prisma.shop.update({
     where: { id: shopId },
     data: {
-      employees: {
-        connect: { id: employeeId }
-      }
+      ownerId: userId
     }
   });
 }
 
-// Dükkandan çalışan çıkarma
-export async function removeEmployeeFromShop(
-  shopId: string, 
-  employeeId: string
-): Promise<Shop> {
-  return prisma.shop.update({
-    where: { id: shopId },
-    data: {
-      employees: {
-        disconnect: { id: employeeId }
-      }
-    }
+// Dükkandan çalışan çıkarma - Artık bu fonksiyona ihtiyaç yok
+// Alternatif olarak başka bir fonksiyon ekleyebiliriz
+export async function getShopByOwnerId(ownerId: string): Promise<Shop[]> {
+  return prisma.shop.findMany({
+    where: { ownerId }
   });
 }
 
-// Dükkanın çalışanlarını getirme
-export async function getShopEmployees(shopId: string) {
+// Dükkanın çalışanlarını getirme - Şemada employees ilişkisi olmadığı için güncellendi
+// Dükkana ait işlemleri yapan kullanıcıları getirme olarak değiştirildi
+export async function getShopOwner(shopId: string) {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     include: {
-      employees: {
+      owner: {
         select: {
           id: true,
           firstName: true,
@@ -158,7 +165,7 @@ export async function getShopEmployees(shopId: string) {
     }
   });
   
-  return shop?.employees || [];
+  return shop?.owner || null;
 }
 
 // Dükkana hizmet ekleme
@@ -167,14 +174,14 @@ export async function addServiceToShop(
   serviceData: {
     name: string;
     description?: string;
+    price?: number | string;
+    duration?: number;
   }
 ): Promise<Service> {
   return prisma.service.create({
     data: {
       ...serviceData,
-      shop: {
-        connect: { id: shopId }
-      }
+      shopId: shopId
     }
   });
 }
@@ -192,10 +199,10 @@ export async function getShopAppointments(
   params: {
     startDate?: Date;
     endDate?: Date;
-    employeeId?: string;
+    userId?: string; // employeeId yerine userId kullanıyoruz
   } = {}
 ) {
-  const { startDate, endDate, employeeId } = params;
+  const { startDate, endDate, userId } = params;
   const where: Prisma.AppointmentWhereInput = { shopId };
 
   // Tarih ve zaman filtreleri için AND koşulları oluştur
@@ -214,14 +221,14 @@ export async function getShopAppointments(
     where.AND = dateConditions;
   }
 
-  if (employeeId) {
-    where.employeeId = employeeId;
+  if (userId) {
+    where.userId = userId;
   }
 
   return prisma.appointment.findMany({
     where,
     include: {
-      customer: {
+      user: {
         select: {
           id: true,
           firstName: true,
@@ -230,13 +237,7 @@ export async function getShopAppointments(
           phone: true
         }
       },
-      employee: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true
-        }
-      }
+      shop: true
     },
     orderBy: [
       { date: 'asc' },
@@ -247,14 +248,20 @@ export async function getShopAppointments(
 
 // Dükkanın değerlendirmelerini getirme
 export async function getShopReviews(shopId: string) {
+  // Review modelinde user ilişkisi yok, olan appointments ilişkisi
   return prisma.review.findMany({
     where: { shopId },
     include: {
-      user: {
+      appointments: {
         select: {
           id: true,
-          firstName: true,
-          lastName: true
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
         }
       }
     },

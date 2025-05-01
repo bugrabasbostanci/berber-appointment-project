@@ -29,18 +29,17 @@ export async function GET(req: NextRequest) {
       countUsers({ role, searchQuery })
     ]);
 
-    // Hassas verileri temizleyelim
-    const safeUsers = users.map(user => {
-      const { password, ...safeUser } = user;
-      return safeUser;
-    });
-
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Kullanıcı bulunamadı' },
-        { status: 404 }
-      );
-    }
+    // Kullanıcı verilerini hazırla
+    const safeUsers = users.map(user => ({
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
 
     return NextResponse.json({
       users: safeUsers,

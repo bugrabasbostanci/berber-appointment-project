@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getShopById, removeEmployeeFromShop } from '@/lib/services/shopService';
+import { getShopById } from '@/lib/services/shopService';
 import { getUserById } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
+import { Role } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 // Dükkandan çalışan çıkarma
 export async function DELETE(
@@ -43,15 +45,23 @@ export async function DELETE(
     }
     
     // Kullanıcı dükkanın sahibi veya admin olmalı
-    if (shop.ownerId !== session.user.id && currentUser.role !== 'admin') {
+    if (shop.ownerId !== session.user.id && currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
       );
     }
 
-    // Dükkandan çalışanı çıkar
-    await removeEmployeeFromShop(shopId, employeeId);
+    // Çalışanın dükkandan çıkarılması (ilgili dükkanın silinmesi)
+    // Çalışana bağlı olan ve bu dükkanda bulunan dükkanı sil
+    await prisma.shop.deleteMany({
+      where: {
+        ownerId: employeeId,
+        name: {
+          contains: shop.name
+        }
+      }
+    });
     
     return NextResponse.json({
       success: true,

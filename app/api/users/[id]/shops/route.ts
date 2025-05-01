@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserById, getUserOwnedShops, getUserEmployeeShops } from '@/lib/services/userService';
+import { getUserById, getUserOwnedShops } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
   req: NextRequest,
@@ -30,7 +31,7 @@ export async function GET(
       );
     }
     
-    if (session.user.id !== userId && currentUserDetails.role !== 'admin') {
+    if (session.user.id !== userId && currentUserDetails.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -60,13 +61,29 @@ export async function GET(
 
     try {
       // Sahip olunan dükkanları getir
-      if (['barber', 'admin'].includes(user.role)) {
+      if (['BARBER', 'ADMIN'].includes(user.role)) {
         response.ownedShops = await getUserOwnedShops(userId);
       }
 
-      // Çalışılan dükkanları getir
-      if (['employee', 'barber'].includes(user.role)) {
-        response.employeeShops = await getUserEmployeeShops(userId);
+      // Çalışılan dükkanları getirme - Şu anda şemada doğrudan ilişki olmadığından,
+      // AvailableTime tablosu üzerinden işlem yapmamız gerekiyor
+      if (['EMPLOYEE', 'BARBER'].includes(user.role)) {
+        // Kullanıcının çalıştığı dükkanları randevular üzerinden bulalım
+        const employeeShops = await prisma.availableTime.findMany({
+          where: {
+            profiles: {
+              some: {
+                userId: userId
+              }
+            }
+          },
+          select: {
+            shop: true
+          },
+          distinct: ['shopId']
+        });
+        
+        response.employeeShops = employeeShops.map(item => item.shop);
       }
     } catch (error) {
       console.error('Dükkan bilgileri alınırken hata oluştu:', error);

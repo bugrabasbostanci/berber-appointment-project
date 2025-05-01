@@ -24,6 +24,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [existingAccountError, setExistingAccountError] = useState<string | null>(null)
+  const [registrationError, setRegistrationError] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
@@ -41,42 +42,64 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
     setExistingAccountError(null)
+    setRegistrationError(null)
 
     try {
+      console.log('Kayıt bilgileri:', { email: data.email, password: '********' })
+      
+      // Önce e-posta adresi ile kayıtlı kullanıcı var mı kontrol et
+      const { data: existingUser } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
+      }).catch(() => ({ data: null })) // Sessiz başarısız - şifre yanlış olabilir, e-posta var mı belli değil
+      
+      if (existingUser?.user) {
+        setExistingAccountError(data.email)
+        setIsLoading(false)
+        return
+      }
+      
+      // Tam callback URL'ini oluştur
+      const redirectURL = new URL('/auth/callback', window.location.origin)
+      // Query parametreleri ekle
+      redirectURL.searchParams.append('next', '/dashboard/customer')
+      
+      console.log('Yönlendirme URL:', redirectURL.toString())
+      
       // Supabase Auth ile kullanıcı kaydı
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          // Email doğrulama için
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard/customer`,
-          // Kullanıcı meta verileri
+          // Email doğrulama için tam URL'i belirt
+          emailRedirectTo: redirectURL.toString(),
+          // Kullanıcı meta verileri - Prisma şemasındaki enum değerlerini kullan
           data: {
-            role: 'customer' // Varsayılan olarak müşteri rolü
+            role: 'CUSTOMER'
           }
         }
       })
 
       // Hata kontrolü ve kullanıcı dostu mesajlar
       if (error) {
+        console.error('Supabase kayıt hatası:', error)
+        
         if (error.message.includes("already registered")) {
           setExistingAccountError(data.email)
           return
         }
+        
+        setRegistrationError(error.message)
         throw error
       }
+      
+      console.log('Kayıt cevabı:', {
+        id: authData?.user?.id,
+        email: authData?.user?.email,
+        emailConfirm: authData?.user?.email_confirmed_at,
+      })
 
-      // Supabase Auth kaydından sonra Prisma'da kullanıcı oluştur
-      if (authData?.user) {
-        try {
-          // Oturum bilgilerini güncelle
-          await fetch('/api/auth/session')
-        } catch (dbError) {
-          console.error("Veritabanı senkronizasyon hatası:", dbError)
-          // Bu hata kullanıcı deneyimini engellemeyeceği için, toast bildirimi gösterme
-        }
-      }
-
+      // Başarılı kayıt mesajı
       toast({
         title: 'Kayıt başarılı!',
         description: 'Lütfen e-posta adresinizi kontrol edin ve hesabınızı doğrulayın.',
@@ -96,24 +119,19 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
     }
   }
 
-  // Varolan hesaba giriş yapmak için yönlendirme
-  const handleExistingAccountLogin = () => {
-    router.push(`/login?email=${encodeURIComponent(form.getValues("email"))}`)
-  }
-
-  // Şifremi unuttum sayfasına yönlendirme
-  const handleForgotPassword = () => {
-    router.push(`/forgot-password?email=${encodeURIComponent(form.getValues("email"))}`)
-  }
-
   // Google ile kayıt
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     try {
+      // Tam callback URL'ini oluştur
+      const redirectURL = new URL('/auth/callback', window.location.origin)
+      // Query parametreleri ekle
+      redirectURL.searchParams.append('next', '/dashboard/customer')
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: redirectURL.toString()
         }
       })
 
@@ -129,6 +147,16 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
       })
       setIsLoading(false)
     }
+  }
+
+  // Varolan hesaba giriş yapmak için yönlendirme
+  const handleExistingAccountLogin = () => {
+    router.push(`/login?email=${encodeURIComponent(form.getValues("email"))}`)
+  }
+
+  // Şifremi unuttum sayfasına yönlendirme
+  const handleForgotPassword = () => {
+    router.push(`/forgot-password?email=${encodeURIComponent(form.getValues("email"))}`)
   }
 
   const togglePasswordVisibility = () => {
@@ -170,6 +198,16 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
                       Şifremi unuttum
                     </Button>
                   </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {registrationError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Kayıt işlemi başarısız</AlertTitle>
+                <AlertDescription>
+                  <p>{registrationError}</p>
                 </AlertDescription>
               </Alert>
             )}

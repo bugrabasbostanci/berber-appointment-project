@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { getUsers } from "@/lib/services/userService"
-import { User } from "@prisma/client"
+import { User, Role } from "@prisma/client"
 
 export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -39,7 +39,7 @@ export default function UsersPage() {
       (user.firstName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.lastName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchTerm.toLowerCase()),
+      (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
   return (
@@ -106,11 +106,11 @@ export default function UsersPage() {
                     </div>
                     <div className="hidden md:block text-sm text-muted-foreground">{user.email}</div>
                     <div className="hidden md:block text-sm">
-                      {user.role === "admin"
+                      {user.role === Role.ADMIN
                         ? "Admin"
-                        : user.role === "barber"
+                        : user.role === Role.BARBER
                           ? "Berber"
-                          : user.role === "employee"
+                          : user.role === Role.EMPLOYEE
                             ? "Çalışan"
                             : "Müşteri"}
                     </div>

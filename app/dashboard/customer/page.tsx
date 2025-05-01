@@ -1,16 +1,40 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, Clock, Scissors } from "lucide-react"
+import { Calendar, Clock, Scissors, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
+// Randevu tipi için interface tanımlama
+interface Appointment {
+  id: string;
+  date: string;
+  time: string;
+  staff: string;
+  service: string;
+}
 
 export default function CustomerDashboardPage() {
-  const [upcomingAppointments, setUpcomingAppointments] = useState([])
+  const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Randevu iptal state'leri
+  const [appointmentToCancel, setAppointmentToCancel] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Verileri API'den çekme
   useEffect(() => {
@@ -20,13 +44,15 @@ export default function CustomerDashboardPage() {
         setError(null)
         
         // Gelecek randevuları getir (en fazla 2 tane)
-        const response = await fetch('/api/appointments?past=false&take=2')
+        const response = await fetch('/api/appointments?past=false&take=2', {
+          cache: 'no-store' // Her zaman güncel veri
+        })
         
         // API'den gelen tüm yanıtları kabul et, hata durumunda bile
         const appointmentsData = await response.json().catch(() => []);
         
         // API verilerini UI için formatla (null kontrolü eklendi)
-        const formattedAppointments = Array.isArray(appointmentsData) 
+        const formattedAppointments: Appointment[] = Array.isArray(appointmentsData) 
           ? appointmentsData.map(apt => {
               // Null veya undefined kontrolü
               if (!apt) return null;
@@ -45,7 +71,7 @@ export default function CustomerDashboardPage() {
                 staff: apt.employee ? `${apt.employee.firstName || ''} ${apt.employee.lastName || ''}`.trim() : "-",
                 service: apt.serviceName || "Belirtilmemiş",
               }
-            }).filter(Boolean) // null değerleri filtrele
+            }).filter(Boolean) as Appointment[] // null değerleri filtrele ve tip güvenliğini sağla
           : [];
         
         setUpcomingAppointments(formattedAppointments);
@@ -61,6 +87,36 @@ export default function CustomerDashboardPage() {
     
     fetchUpcomingAppointments();
   }, []);
+  
+  // Randevu iptal et
+  const cancelAppointment = async () => {
+    if (!appointmentToCancel) return;
+    
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      
+      const response = await fetch(`/api/appointments/${appointmentToCancel}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Randevu iptal edilemedi');
+      }
+      
+      // İptal edilen randevuyu listeden kaldır
+      setUpcomingAppointments(prev => prev.filter(apt => apt.id !== appointmentToCancel));
+      
+      // Diyaloğu kapat
+      setAppointmentToCancel(null);
+    } catch (error) {
+      console.error('Randevu iptal hatası:', error);
+      setDeleteError(error instanceof Error ? error.message : 'Randevu iptal edilemedi');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -105,14 +161,62 @@ export default function CustomerDashboardPage() {
                   </div>
                   <div className="flex gap-2 self-end sm:self-auto">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/appointments/${appointment.id}/reschedule`}>Değiştir</Link>
+                      <Link href={`/dashboard/customer/appointments/reschedule?id=${appointment.id}`}>Değiştir</Link>
                     </Button>
-                    <Button variant="destructive" size="sm" asChild>
-                      <Link href={`/appointments/${appointment.id}/cancel`}>İptal Et</Link>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => setAppointmentToCancel(appointment.id)}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting && appointmentToCancel === appointment.id ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          İptal...
+                        </>
+                      ) : 'İptal Et'}
                     </Button>
                   </div>
                 </div>
               ))}
+              
+              {/* İptal diyaloğu */}
+              <AlertDialog 
+                open={!!appointmentToCancel} 
+                onOpenChange={(open) => !open && setAppointmentToCancel(null)}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Randevu İptal Edilecek</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Bu randevuyu iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {deleteError && (
+                    <div className="p-3 my-2 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                      {deleteError}
+                    </div>
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Vazgeç</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => {
+                        e.preventDefault(); // Dialogu kapatmayı engelle
+                        cancelAppointment();
+                      }}
+                      disabled={isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          İptal Ediliyor...
+                        </>
+                      ) : "İptal Et"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">

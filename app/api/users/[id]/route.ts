@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserById, updateUser, deleteUser, createUser } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { Role } from '@prisma/client';
 
 // Kullanıcı bilgilerini getirme
 export async function GET(
@@ -13,7 +11,6 @@ export async function GET(
   try {
     const supabase = await createClient();
     
-    // getSession() yerine getUser() kullanın
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -23,14 +20,14 @@ export async function GET(
       );
     }
 
-    // params objesini doğrudan kullan, App Router'da hazır geliyor
-    const { id } = await params;
-    const userId = id;
+    // params nesnesini await ediyoruz ve sonra id özelliğine erişiyoruz
+    const resolvedParams = await params;
+    const userId = resolvedParams.id;
     
     // Kullanıcı kendi profilini veya admin ise herhangi bir profili görüntüleyebilir
     const currentUserDetails = await getUserById(user.id);
     
-    if (user.id !== userId && currentUserDetails?.role !== 'admin') {
+    if (user.id !== userId && currentUserDetails?.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -43,16 +40,18 @@ export async function GET(
     // Kullanıcı bulunamadığında, Supabase Auth bilgilerinden bir kullanıcı oluştur
     if (!userDetails) {
       try {
-        userDetails = await prisma.user.create({
-          data: {
-            id: userId,
-            email: user.email || "",
-            role: user.user_metadata?.role || 'customer',
-            firstName: user.user_metadata?.firstName || null,
-            lastName: user.user_metadata?.lastName || null,
-            phone: user.user_metadata?.phone || null
-          }
+        // Role enum değerini doğru şekilde dönüştür
+        const roleValue = user.user_metadata?.role?.toUpperCase() as Role || Role.CUSTOMER;
+        
+        userDetails = await createUser({
+          id: userId,
+          email: user.email || "",
+          role: roleValue,
+          firstName: user.user_metadata?.firstName || null,
+          lastName: user.user_metadata?.lastName || null,
+          phone: user.user_metadata?.phone || null
         });
+        
         console.log(`Yeni kullanıcı kaydı oluşturuldu: ${userId}`);
       } catch (createError) {
         console.error("Kullanıcı oluşturma hatası:", createError);
@@ -62,20 +61,15 @@ export async function GET(
           email: user.email,
           firstName: user.user_metadata?.firstName || null,
           lastName: user.user_metadata?.lastName || null,
-          role: user.user_metadata?.role || 'customer',
-          profileImage: null,
+          role: Role.CUSTOMER,
           phone: user.user_metadata?.phone || null,
-          isActive: true,
           createdAt: new Date(),
           updatedAt: new Date()
         });
       }
     }
 
-    // Hassas verileri temizle
-    const { password, ...safeUser } = userDetails;
-
-    return NextResponse.json(safeUser);
+    return NextResponse.json(userDetails);
   } catch (error) {
     console.error("Kullanıcı bilgilerini getirirken hata:", error);
     return NextResponse.json(
@@ -102,13 +96,14 @@ export async function PATCH(
       );
     }
 
-    const { id } = await params;
-    const userId = id;
+    // params nesnesini await ediyoruz ve sonra id özelliğine erişiyoruz
+    const resolvedParams = await params;
+    const userId = resolvedParams.id;
     
     // Kullanıcı kendi profilini veya admin ise herhangi bir profili güncelleyebilir
     const currentUserDetails = await getUserById(user.id);
     
-    if (user.id !== userId && currentUserDetails?.role !== 'admin') {
+    if (user.id !== userId && currentUserDetails?.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -119,10 +114,10 @@ export async function PATCH(
     const formData = await req.json();
     
     // Güncellenecek verileri hazırla
-    const { password, role, email, ...updateData } = formData;
+    const { role, email, ...updateData } = formData;
     
     // Admin değilse rol ve email güncellenemez
-    const finalUpdateData = currentUserDetails?.role === 'admin' 
+    const finalUpdateData = currentUserDetails?.role === Role.ADMIN 
       ? { ...updateData, role, email } 
       : updateData;
     
@@ -133,13 +128,14 @@ export async function PATCH(
     // Kullanıcı bulunamadığında, önce oluştur
     if (!userDetails) {
       try {
-        userDetails = await prisma.user.create({
-          data: {
-            id: userId,
-            email: user.email || "",
-            role: user.user_metadata?.role || 'customer',
-            ...finalUpdateData
-          }
+        // Role enum değerini doğru şekilde dönüştür
+        const roleValue = user.user_metadata?.role?.toUpperCase() as Role || Role.CUSTOMER;
+        
+        userDetails = await createUser({
+          id: userId,
+          email: user.email || "",
+          role: roleValue,
+          ...finalUpdateData
         });
         
         updatedUser = userDetails;
@@ -163,10 +159,7 @@ export async function PATCH(
       );
     }
 
-    // Hassas verileri temizle
-    const { password: _, ...safeUser } = updatedUser;
-
-    return NextResponse.json(safeUser);
+    return NextResponse.json(updatedUser);
   } catch (error) {
     console.error('Kullanıcı bilgileri güncellenemedi:', error);
     return NextResponse.json(
@@ -193,13 +186,14 @@ export async function DELETE(
       );
     }
 
-    const { id } = await params;
-    const userId = id;
+    // params nesnesini await ediyoruz ve sonra id özelliğine erişiyoruz
+    const resolvedParams = await params;
+    const userId = resolvedParams.id;
     
     // Sadece admin kullanıcıları silebilir
     const currentUserDetails = await getUserById(user.id);
     
-    if (currentUserDetails?.role !== 'admin') {
+    if (currentUserDetails?.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }

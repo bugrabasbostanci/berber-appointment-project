@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEmployeeAvailability, updateAvailabilityRange } from '@/lib/services/availabilityService';
+import { getUserAvailability, updateAvailabilityRange } from '@/lib/services/availabilityService';
 import { getUserById } from '@/lib/services/userService';
 import { createClient } from '@/lib/supabase/server';
+import { Role } from '@prisma/client';
 
 // Çalışanın müsaitlik durumlarını getirme
 export async function GET(
@@ -22,7 +23,7 @@ export async function GET(
     }
     
     // Sadece çalışan ve berber rolündeki kullanıcılar için müsaitlik durumları getirilebilir
-    if (!['employee', 'barber'].includes(employee.role)) {
+    if (employee.role !== Role.EMPLOYEE && employee.role !== Role.BARBER) {
       return NextResponse.json(
         { error: 'Bu kullanıcı için müsaitlik durumları getirilemez' },
         { status: 400 }
@@ -40,7 +41,7 @@ export async function GET(
     const endDate = endDateParam ? new Date(endDateParam) : undefined;
     
     // Çalışanın müsaitlik durumlarını getir
-    const availabilities = await getEmployeeAvailability(employeeId, {
+    const availabilities = await getUserAvailability(employeeId, {
       startDate,
       endDate,
       shopId
@@ -97,8 +98,8 @@ export async function PATCH(
     
     // Kullanıcı kendisi, admin veya berber (dükkan sahibi) olmalı
     if (session.user.id !== employeeId && 
-        currentUser.role !== 'admin' && 
-        currentUser.role !== 'barber') {
+        currentUser.role !== Role.ADMIN && 
+        currentUser.role !== Role.BARBER) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }

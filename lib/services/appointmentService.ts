@@ -5,7 +5,6 @@ import { prisma } from '../prisma';
 export async function createAppointment(data: {
   shopId: string;
   userId: string;
-  employeeId: string;
   date: Date;
   time: Date;
   endTime: Date;
@@ -22,8 +21,8 @@ export async function getAppointmentById(id: string): Promise<Appointment | null
     where: { id },
     include: {
       shop: true,
-      customer: true,
-      employee: true
+      user: true,
+      review: true
     }
   });
 }
@@ -76,13 +75,14 @@ export async function getCustomerAppointments(
     },
     include: {
       shop: true,
-      employee: {
+      user: {
         select: {
           id: true,
           firstName: true,
           lastName: true
         }
-      }
+      },
+      review: true
     },
     orderBy: past
       ? [{ date: 'desc' }, { time: 'desc' }]
@@ -94,7 +94,7 @@ export async function getCustomerAppointments(
 
 // Çalışanın (berber/personel) randevularını getirme
 export async function getEmployeeAppointments(
-  employeeId: string,
+  userId: string,
   params: {
     date?: Date;
     startDate?: Date;
@@ -103,8 +103,31 @@ export async function getEmployeeAppointments(
   } = {}
 ): Promise<Appointment[]> {
   const { date, startDate, endDate, shopId } = params;
-  const where: Prisma.AppointmentWhereInput = { employeeId };
-
+  const where: Prisma.AppointmentWhereInput = {};
+  
+  // Kullanıcıyı bul ve rolünü kontrol et
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true }
+  });
+  
+  if (!user || (user.role !== 'BARBER' && user.role !== 'EMPLOYEE')) {
+    return []; // Kullanıcı çalışan değilse boş dizi döndür
+  }
+  
+  // Dükkanların sahibi/çalışanı olduğu randevuları getir
+  if (user.role === 'BARBER') {
+    // Berber, dükkanın sahibi olduğu randevuları görebilir
+    const shops = await prisma.shop.findMany({
+      where: { ownerId: userId },
+      select: { id: true }
+    });
+    
+    if (shops.length > 0) {
+      where.shopId = { in: shops.map(shop => shop.id) };
+    }
+  }
+  
   // Tek bir gün için filtreleme
   if (date) {
     where.date = date;
@@ -135,7 +158,7 @@ export async function getEmployeeAppointments(
     where,
     include: {
       shop: true,
-      customer: {
+      user: {
         select: {
           id: true,
           firstName: true,
@@ -143,7 +166,8 @@ export async function getEmployeeAppointments(
           email: true,
           phone: true
         }
-      }
+      },
+      review: true
     },
     orderBy: [
       { date: 'asc' },
@@ -156,35 +180,31 @@ export async function getEmployeeAppointments(
 export async function getShopAppointmentsByDate(
   shopId: string,
   date: Date,
-  employeeId?: string
+  userId?: string
 ): Promise<Appointment[]> {
   const where: Prisma.AppointmentWhereInput = {
     shopId,
     date
   };
 
-  if (employeeId) {
-    where.employeeId = employeeId;
+  if (userId) {
+    where.userId = userId;
   }
 
   return prisma.appointment.findMany({
     where,
     include: {
-      customer: {
+      user: {
         select: {
           id: true,
           firstName: true,
           lastName: true,
-          phone: true
+          phone: true,
+          profile: true
         }
       },
-      employee: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true
-        }
-      }
+      shop: true,
+      review: true
     },
     orderBy: { time: 'asc' }
   });
@@ -192,7 +212,7 @@ export async function getShopAppointmentsByDate(
 
 // Belirli bir zaman diliminde çakışan randevuları kontrol etme
 export async function checkOverlappingAppointments(
-  employeeId: string,
+  shopId: string,
   date: Date,
   startTime: Date,
   endTime: Date,
@@ -200,7 +220,7 @@ export async function checkOverlappingAppointments(
 ): Promise<boolean> {
   const overlappingAppointments = await prisma.appointment.findMany({
     where: {
-      employeeId,
+      shopId,
       date,
       id: excludeAppointmentId ? { not: excludeAppointmentId } : undefined,
       OR: [
@@ -230,7 +250,6 @@ export async function checkOverlappingAppointments(
 export async function getAppointmentStats(
   params: {
     shopId?: string;
-    employeeId?: string;
     startDate?: Date;
     endDate?: Date;
   } = {}
@@ -240,16 +259,12 @@ export async function getAppointmentStats(
   completed: number;
   canceledCount: number;
 }> {
-  const { shopId, employeeId, startDate, endDate } = params;
+  const { shopId, startDate, endDate } = params;
   const now = new Date();
   const where: Prisma.AppointmentWhereInput = {};
 
   if (shopId) {
     where.shopId = shopId;
-  }
-
-  if (employeeId) {
-    where.employeeId = employeeId;
   }
 
   // Tarih aralığı filtresi
@@ -341,13 +356,20 @@ export async function addReviewToAppointment(
     });
   } else {
     // Yoksa yeni değerlendirme oluştur
-    await prisma.review.create({
+    const newReview = await prisma.review.create({
       data: {
-        appointmentId,
-        userId: data.userId,
+        // appointmentId direkt olarak kullanılamaz, çünkü Review modelinde bu alan yok
         shopId: data.shopId,
         rating: data.rating,
         comment: data.comment
+      }
+    });
+    
+    // Oluşturulan değerlendirmeyi randevu ile ilişkilendir
+    await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        reviewId: newReview.id
       }
     });
   }
@@ -358,8 +380,7 @@ export async function addReviewToAppointment(
     include: {
       review: true,
       shop: true,
-      customer: true,
-      employee: true
+      user: true
     }
   }) as Promise<Appointment>;
 }
@@ -368,13 +389,12 @@ export async function addReviewToAppointment(
 export async function getAppointmentReports(
   params: {
     shopId?: string;
-    employeeId?: string;
     startDate: Date;
     endDate: Date;
     groupBy: 'day' | 'week' | 'month';
   }
 ): Promise<any[]> {
-  const { shopId, employeeId, startDate, endDate, groupBy } = params;
+  const { shopId, startDate, endDate, groupBy } = params;
   const where: Prisma.AppointmentWhereInput = {
     date: {
       gte: startDate,
@@ -386,10 +406,6 @@ export async function getAppointmentReports(
     where.shopId = shopId;
   }
 
-  if (employeeId) {
-    where.employeeId = employeeId;
-  }
-
   // Tüm randevuları çek
   const appointments = await prisma.appointment.findMany({
     where,
@@ -398,7 +414,7 @@ export async function getAppointmentReports(
       date: true,
       time: true,
       endTime: true,
-      employee: {
+      user: {
         select: {
           id: true,
           firstName: true,

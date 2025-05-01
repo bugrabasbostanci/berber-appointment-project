@@ -3,6 +3,7 @@ import { createAvailability, createManyAvailabilities } from '@/lib/services/ava
 import { getUserById } from '@/lib/services/userService';
 import { getShopById } from '@/lib/services/shopService';
 import { createClient } from '@/lib/supabase/server';
+import { Role } from '@prisma/client';
 
 // Yeni müsaitlik durumu oluşturma
 export async function POST(req: NextRequest) {
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest) {
     }
     
     // Sadece berber, çalışan ve admin rolündeki kullanıcılar müsaitlik durumu oluşturabilir
-    if (!['barber', 'employee', 'admin'].includes(currentUser.role)) {
+    if (currentUser.role !== Role.BARBER && 
+        currentUser.role !== Role.EMPLOYEE && 
+        currentUser.role !== Role.ADMIN) {
       return NextResponse.json(
         { error: 'Bu işlem için yetkiniz bulunmuyor' },
         { status: 403 }
@@ -44,9 +47,9 @@ export async function POST(req: NextRequest) {
       // Toplu kayıt
       // Her bir giriş için gerekli alanların kontrolü
       for (const entry of formData) {
-        if (!entry.shopId || !entry.employeeId || !entry.date || !entry.timeSlots) {
+        if (!entry.shopId || !entry.date || !entry.timeSlots) {
           return NextResponse.json(
-            { error: 'shopId, employeeId, date ve timeSlots alanları zorunludur' },
+            { error: 'shopId, date ve timeSlots alanları zorunludur' },
             { status: 400 }
           );
         }
@@ -60,10 +63,9 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // Kullanıcı dükkanın sahibi, çalışanı veya admin olmalı
+        // Kullanıcı dükkanın sahibi veya admin olmalı
         if (shop.ownerId !== session.user.id && 
-            currentUser.role !== 'admin' && 
-            entry.employeeId !== session.user.id) {
+            currentUser.role !== Role.ADMIN) {
           return NextResponse.json(
             { error: 'Bu dükkan için müsaitlik durumu oluşturma yetkiniz yok' },
             { status: 403 }
@@ -73,8 +75,11 @@ export async function POST(req: NextRequest) {
 
       // Her bir tarih için string'i Date objesine dönüştür
       const parsedData = formData.map(entry => ({
-        ...entry,
-        date: new Date(entry.date)
+        shopId: entry.shopId,
+        date: new Date(entry.date),
+        isAvailable: entry.isAvailable !== false, // Default olarak true
+        timeSlots: entry.timeSlots,
+        reason: entry.reason
       }));
 
       // Toplu kayıt oluştur
@@ -88,9 +93,9 @@ export async function POST(req: NextRequest) {
     } else {
       // Tekil kayıt
       // Gerekli alanların kontrolü
-      if (!formData.shopId || !formData.employeeId || !formData.date || !formData.timeSlots) {
+      if (!formData.shopId || !formData.date || !formData.timeSlots) {
         return NextResponse.json(
-          { error: 'shopId, employeeId, date ve timeSlots alanları zorunludur' },
+          { error: 'shopId, date ve timeSlots alanları zorunludur' },
           { status: 400 }
         );
       }
@@ -104,10 +109,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Kullanıcı dükkanın sahibi, çalışanı veya admin olmalı
+      // Kullanıcı dükkanın sahibi veya admin olmalı
       if (shop.ownerId !== session.user.id && 
-          currentUser.role !== 'admin' && 
-          formData.employeeId !== session.user.id) {
+          currentUser.role !== Role.ADMIN) {
         return NextResponse.json(
           { error: 'Bu dükkan için müsaitlik durumu oluşturma yetkiniz yok' },
           { status: 403 }
@@ -116,9 +120,11 @@ export async function POST(req: NextRequest) {
 
       // String tarihi Date objesine dönüştür
       const availabilityData = {
-        ...formData,
+        shopId: formData.shopId,
         date: new Date(formData.date),
-        isAvailable: formData.isAvailable !== false // Default olarak true
+        isAvailable: formData.isAvailable !== false, // Default olarak true
+        timeSlots: formData.timeSlots,
+        reason: formData.reason
       };
 
       // Müsaitlik durumu oluştur

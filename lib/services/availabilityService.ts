@@ -1,10 +1,9 @@
-import { AvailableTime, Prisma } from '@prisma/client';
+import { AvailableTime, Prisma, User } from '@prisma/client';
 import { prisma } from '../prisma';
 
-// Müsaitlik durumu oluşturma
+// Müsaitlik durumu oluşturma - employeeId olmadığı için değiştirildi
 export async function createAvailability(data: {
   shopId: string;
-  employeeId: string;
   date: Date;
   isAvailable: boolean;
   timeSlots: Prisma.InputJsonValue; // Müsaitlik zaman aralıkları (08:00-09:00, 09:00-10:00, vb.)
@@ -46,10 +45,9 @@ export async function getShopAvailability(
   params: {
     startDate?: Date;
     endDate?: Date;
-    employeeId?: string;
   } = {}
 ): Promise<AvailableTime[]> {
-  const { startDate, endDate, employeeId } = params;
+  const { startDate, endDate } = params;
   const where: Prisma.AvailableTimeWhereInput = { shopId };
 
   // Tarih filtreleri için AND koşulları oluştur
@@ -68,18 +66,18 @@ export async function getShopAvailability(
     where.AND = dateConditions;
   }
 
-  if (employeeId) {
-    where.employeeId = employeeId;
-  }
-
   return prisma.availableTime.findMany({
     where,
     include: {
-      employee: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true
+      profiles: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
         }
       }
     },
@@ -87,9 +85,9 @@ export async function getShopAvailability(
   });
 }
 
-// Belirli bir çalışan için müsaitlik durumlarını getirme
-export async function getEmployeeAvailability(
-  employeeId: string,
+// Belirli bir kullanıcı için müsaitlik durumlarını getirme
+export async function getUserAvailability(
+  userId: string,
   params: {
     startDate?: Date;
     endDate?: Date;
@@ -97,7 +95,24 @@ export async function getEmployeeAvailability(
   } = {}
 ): Promise<AvailableTime[]> {
   const { startDate, endDate, shopId } = params;
-  const where: Prisma.AvailableTimeWhereInput = { employeeId };
+  
+  // Kullanıcının profilini al
+  const profile = await prisma.profile.findUnique({
+    where: { userId }
+  });
+
+  if (!profile) {
+    return [];
+  }
+
+  // Tarih filtreleri için where koşulunu oluştur
+  const where: Prisma.AvailableTimeWhereInput = {
+    profiles: {
+      some: {
+        userId
+      }
+    }
+  };
 
   // Tarih filtreleri için AND koşulları oluştur
   const dateConditions: Prisma.AvailableTimeWhereInput[] = [];
@@ -133,40 +148,56 @@ export async function getEmployeeAvailability(
   });
 }
 
-// Belirli bir tarih için müsait çalışanları bulma
-export async function getAvailableEmployeesForDate(
+// Belirli bir tarih için müsait kullanıcıları bulma
+export async function getAvailableUsersForDate(
   shopId: string,
   date: Date
-): Promise<{ employeeId: string; firstName: string | null; lastName: string | null }[]> {
-  const result = await prisma.availableTime.findMany({
+): Promise<{ userId: string; firstName: string | null; lastName: string | null }[]> {
+  // İlgili tarih için müsait olan zaman dilimleri
+  const availableTimes = await prisma.availableTime.findMany({
     where: {
       shopId,
       date,
       isAvailable: true
     },
-    select: {
-      employeeId: true,
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true
+    include: {
+      profiles: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true
+            }
+          }
         }
       }
     }
   });
 
-  return result.map(item => ({
-    employeeId: item.employeeId,
-    firstName: item.employee.firstName,
-    lastName: item.employee.lastName
-  }));
+  // Profilleri olan kullanıcıları bulalım
+  const users: { userId: string; firstName: string | null; lastName: string | null }[] = [];
+  
+  for (const time of availableTimes) {
+    for (const profile of time.profiles) {
+      users.push({
+        userId: profile.user.id,
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName
+      });
+    }
+  }
+
+  // Tekrar eden kullanıcıları filtreleyelim
+  return Array.from(
+    new Map(users.map(user => [user.userId, user])).values()
+  );
 }
 
-// Birden çok müsaitlik durumu oluşturma (örneğin, birden fazla günü aynı anda eklemek için)
+// Birden çok müsaitlik durumu oluşturma
 export async function createManyAvailabilities(
   data: {
     shopId: string;
-    employeeId: string;
     date: Date;
     isAvailable: boolean;
     timeSlots: Prisma.InputJsonValue;
@@ -178,9 +209,9 @@ export async function createManyAvailabilities(
   });
 }
 
-// Belirli bir tarih aralığı için bir çalışanın müsaitlik durumlarını toplu güncelleme
+// Belirli bir tarih aralığı için bir kullanıcının müsaitlik durumlarını toplu güncelleme
 export async function updateAvailabilityRange(
-  employeeId: string,
+  userId: string,
   shopId: string,
   startDate: Date,
   endDate: Date,
@@ -190,85 +221,169 @@ export async function updateAvailabilityRange(
     reason?: string;
   }
 ): Promise<Prisma.BatchPayload> {
-  return prisma.availableTime.updateMany({
+  // Kullanıcının profilini al
+  const profile = await prisma.profile.findUnique({
+    where: { userId }
+  });
+
+  if (!profile) {
+    throw new Error('Kullanıcı profili bulunamadı');
+  }
+
+  // Belirtilen tarih aralığında ve dükkan için müsaitlik zamanlarını bul
+  const availableTimes = await prisma.availableTime.findMany({
     where: {
-      employeeId,
       shopId,
       date: {
         gte: startDate,
         lte: endDate
+      },
+      profiles: {
+        some: {
+          userId
+        }
       }
-    },
-    data
+    }
   });
+
+  // Her bir müsaitlik zamanını güncelle
+  let updatedCount = 0;
+  for (const time of availableTimes) {
+    await prisma.availableTime.update({
+      where: { id: time.id },
+      data
+    });
+    updatedCount++;
+  }
+
+  return { count: updatedCount };
 }
 
 // Müsaitlik durumlarını randevularla karşılaştırma
 export async function checkAvailabilityWithAppointments(
   shopId: string,
-  employeeId: string,
+  userId: string | null | undefined, // employeeId yerine userId kullanıyoruz
   date: Date
 ): Promise<{ 
   isAvailable: boolean; 
   availableTimeSlots: any; 
   bookedTimeSlots: { start: Date; end: Date }[];
 }> {
-  // 1. O gün için müsaitlik durumunu getir
-  const availability = await prisma.availableTime.findFirst({
-    where: {
-      shopId,
-      employeeId,
-      date
+  try {
+    // Eğer userId tanımlanmamışsa, null ise veya "undefined" ise boş dizi döndürebiliriz
+    if (!userId || userId === "undefined" || userId === '') {
+      console.log(`checkAvailabilityWithAppointments: userId geçerli değil (${userId}). Varsayılan değerler kullanılacak.`);
+      
+      // Dükkana ait müsaitlik zamanlarını bulmaya çalış
+      const shopAvailability = await prisma.availableTime.findFirst({
+        where: {
+          shopId,
+          date,
+          isAvailable: true
+        }
+      });
+      
+      return {
+        isAvailable: true,
+        availableTimeSlots: shopAvailability?.timeSlots || [], // Eğer müsaitlik kaydı varsa, zaman dilimlerini kullan
+        bookedTimeSlots: [] // Kullanıcıya özgü randevular olmadığı için boş dizi döndür
+      };
     }
-  });
-
-  // 2. O gün için mevcut randevuları getir
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      shopId,
-      employeeId,
-      date
-    },
-    select: {
-      time: true,
-      endTime: true
+    
+    // userId "default-" ile başlıyorsa, bu varsayılan personel demektir, hataya düşmesini engelleyelim
+    if (userId.startsWith('default-')) {
+      console.log(`Varsayılan personel ID kullanıldı: ${userId}. Varsayılan değerler döndürülüyor.`);
+      return {
+        isAvailable: true,
+        availableTimeSlots: [], // Boş döndürerek varsayılan zamanların kullanılmasını sağlayacağız
+        bookedTimeSlots: []
+      };
     }
-  });
+    
+    // Kullanıcının bağlı olduğu müsaitlik durumunu bul
+    const availableTime = await prisma.availableTime.findFirst({
+      where: {
+        shopId,
+        date,
+        profiles: {
+          some: {
+            userId
+          }
+        }
+      }
+    });
+    
+    // Eğer kullanıcıya bağlı müsaitlik bulunamazsa, doğrudan dükkanın o gün için müsaitliğini kontrol et
+    let effectiveAvailableTime = availableTime;
+    if (!effectiveAvailableTime) {
+      console.log(`Kullanıcı (${userId}) için müsaitlik bulunamadı. Dükkanın müsaitliği kontrol ediliyor.`);
+      effectiveAvailableTime = await prisma.availableTime.findFirst({
+        where: {
+          shopId,
+          date,
+          isAvailable: true
+        }
+      });
+    }
 
-  // Eğer müsaitlik kaydı yoksa veya çalışan müsait değilse
-  if (!availability || !availability.isAvailable) {
+    // O gün için mevcut randevuları getir
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        shopId,
+        date,
+        // userId'yi sorgudan çıkartalım çünkü bu personelin ID'si, randevuları kaydettiğimiz yerde müşteri ID'si var
+      },
+      select: {
+        time: true,
+        endTime: true
+      }
+    });
+
+    // Eğer müsaitlik kaydı yoksa veya kullanıcı müsait değilse
+    if (!effectiveAvailableTime || !effectiveAvailableTime.isAvailable) {
+      console.log(`Müsaitlik bulunamadı veya müsait değil: shopId=${shopId}, userId=${userId}, date=${date.toISOString()}`);
+      return {
+        isAvailable: false,
+        availableTimeSlots: [],
+        bookedTimeSlots: appointments.map(app => ({
+          start: app.time,
+          end: app.endTime
+        }))
+      };
+    }
+
+    // Aksi takdirde müsaitlik durumunu ve randevuları döndür
+    console.log(`Müsaitlik bulundu: shopId=${shopId}, userId=${userId}, date=${date.toISOString()}`);
     return {
-      isAvailable: false,
-      availableTimeSlots: {},
+      isAvailable: true,
+      availableTimeSlots: effectiveAvailableTime.timeSlots,
       bookedTimeSlots: appointments.map(app => ({
         start: app.time,
         end: app.endTime
       }))
     };
+  } catch (error) {
+    console.error('Müsaitlik kontrolü hata:', error);
+    // Hata durumunda varsayılan değer döndür
+    return {
+      isAvailable: false,
+      availableTimeSlots: [],
+      bookedTimeSlots: []
+    };
   }
-
-  // Aksi takdirde müsaitlik durumunu ve randevuları döndür
-  return {
-    isAvailable: true,
-    availableTimeSlots: availability.timeSlots,
-    bookedTimeSlots: appointments.map(app => ({
-      start: app.time,
-      end: app.endTime
-    }))
-  };
 }
 
-// Birden fazla çalışanın takvimini getirme
-export async function getTeamCalendar(
+// Dükkanın takvimini getirme
+export async function getShopCalendar(
   shopId: string,
   startDate: Date,
   endDate: Date
 ): Promise<any> {
-  // 1. Dükkandaki tüm çalışanları getir
-  const employees = await prisma.shop.findUnique({
+  // 1. Dükkanın sahibini ve ilgili kullanıcı bilgilerini getir
+  const shop = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: {
-      employees: {
+    include: {
+      owner: {
         select: {
           id: true,
           firstName: true,
@@ -278,50 +393,58 @@ export async function getTeamCalendar(
     }
   });
 
-  if (!employees) {
+  if (!shop) {
     return [];
   }
 
-  // 2. Her çalışan için müsaitlik bilgilerini ve randevuları getir
-  const teamCalendar = await Promise.all(
-    employees.employees.map(async (employee) => {
-      const availabilities = await prisma.availableTime.findMany({
-        where: {
-          shopId,
-          employeeId: employee.id,
-          date: {
-            gte: startDate,
-            lte: endDate
-          }
-        }
-      });
-
-      const appointments = await prisma.appointment.findMany({
-        where: {
-          shopId,
-          employeeId: employee.id,
-          date: {
-            gte: startDate,
-            lte: endDate
-          }
-        },
+  // 2. Dükkana ait müsaitlik bilgilerini getir
+  const availabilities = await prisma.availableTime.findMany({
+    where: {
+      shopId,
+      date: {
+        gte: startDate,
+        lte: endDate
+      }
+    },
+    include: {
+      profiles: {
         include: {
-          customer: {
+          user: {
             select: {
+              id: true,
               firstName: true,
               lastName: true
             }
           }
         }
-      });
+      }
+    }
+  });
 
-      return {
-        employee,
-        availabilities,
-        appointments
-      };
-    })
-  );
+  // 3. Dükkana ait randevuları getir
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      shopId,
+      date: {
+        gte: startDate,
+        lte: endDate
+      }
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true
+        }
+      }
+    }
+  });
 
-  return teamCalendar;
+  // 4. Tüm bilgileri birleştir ve döndür
+  return {
+    shop,
+    availabilities,
+    appointments
+  };
 }

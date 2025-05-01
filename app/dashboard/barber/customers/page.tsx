@@ -10,8 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Kullanıcı tipi tanımlaması
 type Customer = {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   phone: string;
   lastVisit?: string;
@@ -30,25 +29,27 @@ export default function CustomersPage() {
     const fetchCustomers = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/users?role=customer')
+        const response = await fetch('/api/users?role=CUSTOMER')
         if (!response.ok) {
           throw new Error('Müşteri verileri getirilemedi')
         }
         const data = await response.json()
         
         // API'den gelen verileri UI için uygun formata dönüştürme
-        const formattedCustomers = data.map((customer: any) => ({
+        const formattedCustomers = data.users?.map((customer: any) => ({
           id: customer.id,
           name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
           email: customer.email,
           phone: customer.phone || "-",
-          status: customer.isActive ? "Aktif" : "Pasif",
-          lastVisit: customer.lastAppointment ? new Date(customer.lastAppointment).toLocaleDateString('tr-TR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-          }) : "-"
-        }))
+          status: customer.profile?.isActive ? "Aktif" : "Pasif",
+          lastVisit: customer.appointments?.length > 0 
+            ? new Date(customer.appointments[0].date).toLocaleDateString('tr-TR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              }) 
+            : "-"
+        })) || []
         
         setCustomers(formattedCustomers)
       } catch (error) {

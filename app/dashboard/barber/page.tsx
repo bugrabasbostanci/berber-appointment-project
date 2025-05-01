@@ -7,11 +7,40 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 
+// Tip tanımlamaları
+type AppointmentType = {
+  id: string
+  time: string
+  customer: {
+    name: string
+    avatar: string
+    initials: string
+    phone: string
+  }
+  service: string
+}
+
+type ApiAppointment = {
+  id: string
+  time: Date
+  user: {
+    firstName: string | null
+    lastName: string | null
+    phone: string | null
+    profile?: {
+      profileImage?: string
+    }
+  }
+  service?: {
+    name: string
+  }
+}
+
 export default function BarberDashboardPage() {
-  const [todaysAppointments, setTodaysAppointments] = useState([])
-  const [customerCount, setCustomerCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [todaysAppointments, setTodaysAppointments] = useState<AppointmentType[]>([])
+  const [customerCount, setCustomerCount] = useState<number>(0)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Format today's date
   const today = new Date()
@@ -51,10 +80,10 @@ export default function BarberDashboardPage() {
           throw new Error('Randevu verileri getirilemedi')
         }
         
-        const appointmentsData = await appointmentsResponse.json()
+        const appointmentsData: ApiAppointment[] = await appointmentsResponse.json()
         
-        // Müşteri sayısını getirme
-        const customersResponse = await fetch(`/api/shops/${shopId}/customers/count`)
+        // Müşteri sayısını getirme - ROLE=CUSTOMER olan kullanıcıların sayısını getirme
+        const customersResponse = await fetch(`/api/users?role=CUSTOMER&count=true`)
         if (!customersResponse.ok) {
           throw new Error('Müşteri sayısı getirilemedi')
         }
@@ -62,24 +91,24 @@ export default function BarberDashboardPage() {
         const customersData = await customersResponse.json()
         
         // API verilerini UI için uygun formata dönüştürme
-        const formattedAppointments = appointmentsData.map(apt => ({
+        const formattedAppointments = appointmentsData.map((apt: ApiAppointment) => ({
           id: apt.id,
           time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
           customer: {
-            name: `${apt.customer.firstName || ''} ${apt.customer.lastName || ''}`.trim(),
-            avatar: apt.customer.profileImage || "/placeholder.svg",
-            initials: getInitials(`${apt.customer.firstName || ''} ${apt.customer.lastName || ''}`.trim()),
-            phone: apt.customer.phone || "-",
+            name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim(),
+            avatar: apt.user.profile?.profileImage || "/placeholder.svg",
+            initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim()),
+            phone: apt.user.phone || "-",
           },
-          service: apt.serviceName || "Belirtilmemiş",
+          service: apt.service?.name || "Belirtilmemiş",
         }))
         
         setTodaysAppointments(formattedAppointments)
         setCustomerCount(customersData.count || 0)
         
-      } catch (error) {
-        console.error("Dashboard verileri yüklenirken hata:", error)
-        setError(error.message)
+      } catch (err: unknown) {
+        console.error("Dashboard verileri yüklenirken hata:", err)
+        setError(err instanceof Error ? err.message : 'Bilinmeyen bir hata oluştu')
       } finally {
         setLoading(false)
       }
@@ -89,10 +118,12 @@ export default function BarberDashboardPage() {
   }, [todayFormatted])
   
   // İsimlerin baş harflerini alma
-  const getInitials = (name) => {
+  const getInitials = (name: string): string => {
+    if (!name) return ''
+    
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n: string) => n[0])
       .join('')
       .toUpperCase()
   }

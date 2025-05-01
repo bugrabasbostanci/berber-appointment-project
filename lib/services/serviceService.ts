@@ -53,7 +53,9 @@ export async function getServiceById(id: string): Promise<Service | null> {
 export async function createService(serviceData: {
   name: string;
   description?: string;
-  shopId?: string;
+  shopId: string;
+  price?: number | string;
+  duration?: number;
 }): Promise<Service> {
   return prisma.service.create({
     data: serviceData

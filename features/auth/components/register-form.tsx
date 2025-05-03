@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import useUserStore from "@/app/stores/userStore"
 
 import { cn } from "@/lib/utils"
 import { registerFormSchema, type RegisterFormValues } from "@/lib/validations/auth"
@@ -28,6 +29,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
+  const { setAuthUser, setDbUser } = useUserStore()
 
   // Form tanımlama
   const form = useForm<RegisterFormValues>({
@@ -98,6 +100,27 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
         email: authData?.user?.email,
         emailConfirm: authData?.user?.email_confirmed_at,
       })
+
+      // Yeni kullanıcıyı store'a kaydet
+      if (authData?.user) {
+        setAuthUser(authData.user)
+        
+        // Varsayılan DB kullanıcı bilgileri
+        const defaultDbUser = {
+          id: authData.user.id,
+          email: authData.user.email || '',
+          firstName: null,
+          lastName: null,
+          role: 'CUSTOMER' as const,
+          profileImage: null,
+          phone: null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        
+        setDbUser(defaultDbUser)
+      }
 
       // Başarılı kayıt mesajı
       toast({

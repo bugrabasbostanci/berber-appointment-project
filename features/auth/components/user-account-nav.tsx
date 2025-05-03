@@ -16,9 +16,11 @@ import {
 import { BadgeCheck, LogOut, Settings, User, LayoutDashboard } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "../providers/auth-provider"
+import useUserStore from "@/app/stores/userStore"
 
 export function UserAccountNav() {
   const { user, dbUser } = useAuth()
+  const userStore = useUserStore()
   const supabase = createClient()
   const pathname = usePathname()
   
@@ -27,34 +29,24 @@ export function UserAccountNav() {
     await supabase.auth.signOut()
   }
   
-  if (!user || !dbUser) {
+  if (!userStore.dbUser || !userStore.isAuthenticated) {
     return null
   }
   
-  // Google ile giriş yapan kullanıcıların display name bilgisini kullan
-  // Eğer yoksa veritabanındaki isim bilgisini kullan
-  const googleDisplayName = user.user_metadata?.full_name || user.user_metadata?.name
-  
-  // Kullanıcı adını formatla
-  const fullName = googleDisplayName || 
-    `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Kullanıcı'
-  
-  // İsim baş harflerini al
-  const initials = fullName
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
+  // Kullanıcı adını ve diğer bilgileri Zustand store'dan al
+  const fullName = userStore.getFullName() || 'Kullanıcı'
+  const initials = userStore.getInitials()
+  const profileImage = userStore.getProfileImage() || ""
   
   // Kullanıcının dashboard'una doğru yönlendirme yap
-  const dashboardPath = `/dashboard/${dbUser.role.toLowerCase()}`
+  const dashboardPath = `/dashboard/${userStore.dbUser.role.toLowerCase()}`
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={dbUser.profileImage || ""} alt={fullName} />
+            <AvatarImage src={profileImage} alt={fullName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Button>
@@ -63,7 +55,7 @@ export function UserAccountNav() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{fullName}</p>
-            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+            <p className="text-xs leading-none text-muted-foreground">{userStore.dbUser.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

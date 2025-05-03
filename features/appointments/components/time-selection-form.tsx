@@ -108,9 +108,13 @@ export function TimeSelectionForm() {
         setError(null);
       } else if (data.error) {
         console.error('API hatası:', data.error);
-        // Hata durumunda varsayılan zamanları kullanalım
-        setAvailableTimes(generateDefaultTimeSlots());
         setError(`Müsait zamanlar yüklenirken bir hata oluştu: ${data.error}`);
+        // Hata olsa bile varsayılan değerleri gösterelim
+        setAvailableTimes(generateDefaultTimeSlots());
+      } else if (Array.isArray(data.availableTimes)) {
+        // Bazen success alanı olmayabilir, direkt availableTimes array'i de olabilir
+        setAvailableTimes(data.availableTimes);
+        setError(null);
       } else {
         console.warn('API beklenmeyen format döndü:', data);
         // Beklenmeyen yanıt formatı - varsayılan zamanları kullanalım
@@ -131,9 +135,9 @@ export function TimeSelectionForm() {
   // Varsayılan zaman dilimlerini oluşturmak için yardımcı fonksiyon
   const generateDefaultTimeSlots = () => {
     const defaultTimes = [
-      "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
-      "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
-      "16:00", "16:30", "17:00", "17:30", "18:00", "18:30"
+      "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+      "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+      "18:30", "19:15", "20:00", "20:45"
     ];
     
     return defaultTimes.map((time, index) => ({

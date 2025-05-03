@@ -19,6 +19,7 @@ import { Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InfoIcon } from "lucide-react"
+import useUserStore from "@/app/stores/userStore"
 
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const [isLoading, setIsLoading] = useState(false)
@@ -102,6 +103,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`
+          
         }
       })
       

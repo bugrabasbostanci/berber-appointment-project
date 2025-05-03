@@ -78,7 +78,7 @@ CREATE TABLE "services" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "price" DECIMAL(10,2) NOT NULL DEFAULT 0,
-    "duration" INTEGER NOT NULL DEFAULT 30,
+    "duration" INTEGER NOT NULL DEFAULT 45,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

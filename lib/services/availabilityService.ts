@@ -6,7 +6,7 @@ export async function createAvailability(data: {
   shopId: string;
   date: Date;
   isAvailable: boolean;
-  timeSlots: Prisma.InputJsonValue; // Müsaitlik zaman aralıkları (08:00-09:00, 09:00-10:00, vb.)
+  timeSlots: Prisma.InputJsonValue; // Müsaitlik zaman aralıkları (09:30-10:15, 10:15-11:00, vb.)
   reason?: string;
 }): Promise<AvailableTime> {
   return prisma.availableTime.create({
@@ -270,33 +270,56 @@ export async function checkAvailabilityWithAppointments(
   bookedTimeSlots: { start: Date; end: Date }[];
 }> {
   try {
-    // Eğer userId tanımlanmamışsa, null ise veya "undefined" ise boş dizi döndürebiliriz
+    // Eğer userId tanımlanmamışsa, null ise veya "undefined" ise varsayılan müsaitlik bilgilerini kullanalım
     if (!userId || userId === "undefined" || userId === '') {
       console.log(`checkAvailabilityWithAppointments: userId geçerli değil (${userId}). Varsayılan değerler kullanılacak.`);
       
-      // Dükkana ait müsaitlik zamanlarını bulmaya çalış
-      const shopAvailability = await prisma.availableTime.findFirst({
+      // O gün için mevcut randevuları getir (dükkan bazında)
+      const appointments = await prisma.appointment.findMany({
         where: {
           shopId,
-          date,
-          isAvailable: true
+          date
+        },
+        select: {
+          time: true,
+          endTime: true
         }
       });
       
+      // Randevulardan dolu saatleri döndür, müsaitliği true olarak belirt
       return {
         isAvailable: true,
-        availableTimeSlots: shopAvailability?.timeSlots || [], // Eğer müsaitlik kaydı varsa, zaman dilimlerini kullan
-        bookedTimeSlots: [] // Kullanıcıya özgü randevular olmadığı için boş dizi döndür
+        availableTimeSlots: [], // Boş array, UI varsayılan zamanları kullanacak
+        bookedTimeSlots: appointments.map(app => ({
+          start: app.time,
+          end: app.endTime
+        }))
       };
     }
     
     // userId "default-" ile başlıyorsa, bu varsayılan personel demektir, hataya düşmesini engelleyelim
     if (userId.startsWith('default-')) {
       console.log(`Varsayılan personel ID kullanıldı: ${userId}. Varsayılan değerler döndürülüyor.`);
+      
+      // O gün için mevcut randevuları getir (dükkan bazında)
+      const appointments = await prisma.appointment.findMany({
+        where: {
+          shopId,
+          date
+        },
+        select: {
+          time: true,
+          endTime: true
+        }
+      });
+      
       return {
         isAvailable: true,
         availableTimeSlots: [], // Boş döndürerek varsayılan zamanların kullanılmasını sağlayacağız
-        bookedTimeSlots: []
+        bookedTimeSlots: appointments.map(app => ({
+          start: app.time,
+          end: app.endTime
+        }))
       };
     }
     
@@ -320,8 +343,7 @@ export async function checkAvailabilityWithAppointments(
       effectiveAvailableTime = await prisma.availableTime.findFirst({
         where: {
           shopId,
-          date,
-          isAvailable: true
+          date
         }
       });
     }
@@ -330,7 +352,7 @@ export async function checkAvailabilityWithAppointments(
     const appointments = await prisma.appointment.findMany({
       where: {
         shopId,
-        date,
+        date
         // userId'yi sorgudan çıkartalım çünkü bu personelin ID'si, randevuları kaydettiğimiz yerde müşteri ID'si var
       },
       select: {
@@ -339,9 +361,22 @@ export async function checkAvailabilityWithAppointments(
       }
     });
 
-    // Eğer müsaitlik kaydı yoksa veya kullanıcı müsait değilse
-    if (!effectiveAvailableTime || !effectiveAvailableTime.isAvailable) {
-      console.log(`Müsaitlik bulunamadı veya müsait değil: shopId=${shopId}, userId=${userId}, date=${date.toISOString()}`);
+    // Eğer müsaitlik kaydı yoksa bile, bir varsayılan durum oluşturalım
+    if (!effectiveAvailableTime) {
+      console.log(`Dükkan için de müsaitlik bulunamadı: shopId=${shopId}, date=${date.toISOString()}. Varsayılan müsaitlik döndürülüyor.`);
+      return {
+        isAvailable: true, // Varsayılan olarak müsait kabul edelim
+        availableTimeSlots: [], // Boş array döndürerek UI'ın varsayılan zamanları kullanmasını sağlayalım
+        bookedTimeSlots: appointments.map(app => ({
+          start: app.time,
+          end: app.endTime
+        }))
+      };
+    }
+
+    // Müsaitlik varsa ama isAvailable false ise
+    if (effectiveAvailableTime && !effectiveAvailableTime.isAvailable) {
+      console.log(`Müsaitlik kaydı bulundu ama müsait değil: shopId=${shopId}, userId=${userId}, date=${date.toISOString()}`);
       return {
         isAvailable: false,
         availableTimeSlots: [],
@@ -364,9 +399,9 @@ export async function checkAvailabilityWithAppointments(
     };
   } catch (error) {
     console.error('Müsaitlik kontrolü hata:', error);
-    // Hata durumunda varsayılan değer döndür
+    // Hata durumunda varsayılan değer döndür - müsait kabul edelim ve boş dizi döndürelim
     return {
-      isAvailable: false,
+      isAvailable: true, // Hata durumunda varsayılan olarak müsait kabul edelim
       availableTimeSlots: [],
       bookedTimeSlots: []
     };

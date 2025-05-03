@@ -58,25 +58,38 @@ export default function AppointmentsPage() {
         // API'den gelen tüm yanıtları kabul et
         const appointmentsData = await response.json().catch(() => []);
         
-        // API verilerini UI için formatla (null kontrolü eklendi)
-        const formatAppointment = (apt: any): Appointment | null => {
+        // Randevu verilerini formatla - bu işlev daha temiz kod sağlar
+        const formatAppointment = (apt: any) => {
           if (!apt) return null;
+          
+          // Tarih formatlaması için zaman dilimi farkını telafi et
+          let appointmentDate;
+          if (apt.date) {
+            // Zaman dilimi farkını önlemek için tarih kısmını ayrıca parse et
+            const dateStr = apt.date.split('T')[0]; // YYYY-MM-DD formatını al
+            const [year, month, day] = dateStr.split('-').map(Number);
+            
+            // Yeni date objesi oluştur (zaman dilimi etkisini kaldırarak)
+            appointmentDate = new Date(year, month - 1, day);
+          } else {
+            appointmentDate = new Date();
+          }
           
           return {
             id: apt.id || "unknown",
-            date: apt.date ? new Date(apt.date).toLocaleDateString('tr-TR', {
+            date: appointmentDate.toLocaleDateString('tr-TR', {
               day: 'numeric',
               month: 'long',
               year: 'numeric'
-            }) : "-",
+            }),
             time: apt.time ? new Date(apt.time).toLocaleTimeString('tr-TR', {
               hour: '2-digit',
               minute: '2-digit'
             }) : "-",
-            staff: apt.user ? `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim() : "-",
-            service: apt.service?.name || "Belirtilmemiş",
-            shopName: apt.shop?.name || "Belirtilmemiş",
-            reviewed: Boolean(apt.review)
+            staff: apt.employee ? `${apt.employee.firstName || ''} ${apt.employee.lastName || ''}`.trim() : "-",
+            service: apt.service?.name || apt.serviceName || "Belirtilmemiş",
+            shopName: apt.shop?.name || "Belirtilmemiş Dükkan",
+            reviewed: !!apt.review
           }
         }
         

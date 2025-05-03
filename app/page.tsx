@@ -2,7 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardTitle } from "@/components/ui/card"
-import { Scissors, BeakerIcon as Beard, User, Star, MapPin, Phone, Mail } from "lucide-react"
+import { Scissors, BeakerIcon as Beard, User, Star, MapPin, Phone, Mail, Baby } from "lucide-react"
 import { Navbar } from "@/features/layout/components/navbar"
 import { Footer } from "@/features/layout/components/footer"
 
@@ -92,7 +92,7 @@ export default function HomePage() {
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-start gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
-                      <User className="h-5 w-5 text-primary" />
+                      <Baby className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <CardTitle className="text-lg mb-1">Çocuk Tıraşı</CardTitle>
@@ -249,27 +249,23 @@ export default function HomePage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" />
-                    <p className="text-sm sm:text-base">Atatürk Cad. No:123, İstanbul</p>
+                    <p className="text-sm sm:text-base">Turan Mah. Okçular Sk. No:7/C Turgutlu, Manisa</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="h-5 w-5 text-primary" />
-                    <p className="text-sm sm:text-base">+90 212 345 67 89</p>
+                    <p className="text-sm sm:text-base">0507 913 0769</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail className="h-5 w-5 text-primary" />
-                    <p className="text-sm sm:text-base">info@berberapp.com</p>
+                    <p className="text-sm sm:text-base">denizberberolan@gmail.com</p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-lg font-bold">Çalışma Saatleri</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm sm:text-base">
                     <div>
-                      <p className="font-medium">Pazartesi - Cuma</p>
-                      <p className="text-muted-foreground">09:00 - 20:00</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Cumartesi</p>
-                      <p className="text-muted-foreground">10:00 - 18:00</p>
+                      <p className="font-medium">Pazartesi - Cumartesi</p>
+                      <p className="text-muted-foreground">09:30 - 20:00</p>
                     </div>
                     <div>
                       <p className="font-medium">Pazar</p>
@@ -280,8 +276,7 @@ export default function HomePage() {
               </div>
               <div className="w-full h-[300px] sm:h-auto overflow-hidden rounded-lg">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d192698.6596245466!2d28.8720964971335!3d41.00546376499815!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14caa7040068086b%3A0xe1ccfe98bc01b0d0!2zxLBzdGFuYnVs!5e0!3m2!1str!2str!4v1713881996121!5m2!1str!2str"
-                  style={{ border: 0 }}
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3122.4946426408897!2d27.70579258237776!3d38.49930146149921!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14b9a79657586eb9%3A0xf610a9332b6ce970!2sThe%20Barber%20Shop%20Turgutlu!5e0!3m2!1str!2str!4v1746272643170!5m2!1str!2str"
                   allowFullScreen
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"

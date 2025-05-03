@@ -47,7 +47,13 @@ export async function GET(
       return NextResponse.json({ error: 'Oturum açmanız gerekiyor' }, { status: 401 });
     }
     
-    const { id } = params;
+    // id parametresini güvenli bir şekilde al
+    const id = params?.id;
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Geçersiz randevu ID' }, { status: 400 });
+    }
+    
     const role = session.user.user_metadata?.role || 'CUSTOMER';
     
     const { access, appointment, error, status } = await checkAppointmentAccess(
@@ -82,7 +88,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Oturum açmanız gerekiyor' }, { status: 401 });
     }
     
-    const { id } = params;
+    // id parametresini güvenli bir şekilde al
+    const id = params?.id;
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Geçersiz randevu ID' }, { status: 400 });
+    }
+    
     const role = session.user.user_metadata?.role || 'CUSTOMER';
     
     const { access, error, status } = await checkAppointmentAccess(
@@ -140,7 +152,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'Oturum açmanız gerekiyor' }, { status: 401 });
     }
     
-    const { id } = params;
+    // id parametresini güvenli bir şekilde al
+    const id = params?.id;
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Geçersiz randevu ID' }, { status: 400 });
+    }
+    
     const role = session.user.user_metadata?.role || 'CUSTOMER';
     
     const { access, error, status } = await checkAppointmentAccess(

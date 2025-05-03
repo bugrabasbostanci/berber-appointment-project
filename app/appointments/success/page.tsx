@@ -41,8 +41,7 @@ export default function AppointmentSuccessPage() {
               </div>
             </div>
             <p className="text-sm text-center text-muted-foreground">
-              Randevu detaylarınız e-posta ve SMS yoluyla size gönderilecektir. Randevunuzu görüntülemek veya
-              değiştirmek için hesabınıza giriş yapabilirsiniz.
+              Randevunuzu görüntülemek veya iptal etmek için randevular sayfasına gidiniz.
             </p>
           </CardContent>
           <CardFooter className="flex flex-col gap-3">

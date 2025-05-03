@@ -6,361 +6,385 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useIsMobile } from "@/hooks/use-mobile"
+import useUserStore from "@/app/stores/userStore"
+import { useSearchParams } from "next/navigation"
+import { toast } from "@/components/ui/use-toast"
 
-// Basitleştirilmiş randevu verileri
-const appointmentsData = [
-  {
-    id: "1",
-    date: new Date(2023, 5, 15),
-    time: "09:00",
-    customer: {
-      name: "Mehmet Aydın",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "MA",
-    },
-    service: "Saç Kesimi + Sakal Düzeltme",
-    duration: 45,
-  },
-  {
-    id: "2",
-    date: new Date(2023, 5, 15),
-    time: "10:30",
-    customer: {
-      name: "Ali Demir",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "AD",
-    },
-    service: "Saç Kesimi",
-    duration: 30,
-  },
-  {
-    id: "3",
-    date: new Date(2023, 5, 15),
-    time: "11:30",
-    customer: {
-      name: "Hasan Kaya",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "HK",
-    },
-    service: "Sakal Tıraşı",
-    duration: 20,
-  },
-  {
-    id: "4",
-    date: new Date(2023, 5, 16),
-    time: "09:00",
-    customer: {
-      name: "Osman Şahin",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "OŞ",
-    },
-    service: "Saç Kesimi + Yıkama",
-    duration: 45,
-  },
-  {
-    id: "5",
-    date: new Date(2023, 5, 16),
-    time: "10:30",
-    customer: {
-      name: "Kemal Yıldız",
-      avatar: "/placeholder.svg?height=32&width=32",
-      initials: "KY",
-    },
-    service: "Saç Kesimi + Sakal Düzeltme",
-    duration: 45,
-  },
-]
+// API'den alınan randevu tipi
+type ApiAppointment = {
+  id: string;
+  time: string;
+  date: string;
+  user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phone: string | null;
+    profile?: {
+      profileImage: string | null;
+    }
+  };
+  service?: {
+    id: string;
+    name: string;
+    duration: number;
+  };
+  duration: number;
+}
 
-// Zaman dilimleri
+// UI için kullanılacak randevu tipi
+type AppointmentType = {
+  id: string;
+  date: Date;
+  time: string;
+  customer: {
+    name: string;
+    avatar: string;
+    initials: string;
+  };
+  service: string;
+  duration: number;
+}
+
+// Time slots for daily view
 const timeSlots = [
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-  "17:00",
-  "17:30",
-  "18:00",
-  "18:30",
-  "19:00",
+  "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+  "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+  "18:30", "19:15", "20:00", "20:45"
 ]
-
-// Time slots for the day view
-// const timeSlots = [
-//   "09:00",
-//   "09:30",
-//   "10:00",
-//   "10:30",
-//   "11:00",
-//   "11:30",
-//   "12:00",
-//   "12:30",
-//   "13:00",
-//   "13:30",
-//   "14:00",
-//   "14:30",
-//   "15:00",
-//   "15:30",
-//   "16:00",
-//   "16:30",
-//   "17:00",
-//   "17:30",
-//   "18:00",
-//   "18:30",
-//   "19:00",
-// ]
-
-// Simplified time slots for mobile view (hourly)
-const mobileTimeSlots = [
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-]
-
-// Days of the week for the week view
-const daysOfWeek = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-const daysOfWeekShort = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
 
 export default function EmployeeCalendarPage() {
-  const [date, setDate] = useState<Date>(new Date())
-  const [view, setView] = useState("day") // day, week, month
-  const calendarScrollRef = useRef<HTMLDivElement>(null)
+  const searchParams = useSearchParams()
+  const userStore = useUserStore()
+  
+  // URL'den tarih parametresini al
+  const dateParam = searchParams.get('date')
+  
+  // Takvim ayı ve yılı
+  const [currentDate, setCurrentDate] = useState(
+    dateParam ? new Date(dateParam) : new Date()
+  )
+  
+  // Randevu verileri
+  const [appointments, setAppointments] = useState<AppointmentType[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  // Seçili gün ve ay
+  const [selectedYear, selectedMonth] = [currentDate.getFullYear(), currentDate.getMonth()]
+  
+  // Takvimi görüntülemek için referans
+  const calendarRef = useRef<HTMLDivElement>(null)
+  
+  // Mobil ekran kontrolü
   const isMobile = useIsMobile()
 
-  // Seçili tarihi formatla
-  const formattedDate = date.toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    weekday: "long",
-  })
-
-  // Get the start and end of the week for the selected date
-  const getWeekDates = (date: Date) => {
-    const day = date.getDay() || 7 // Convert Sunday (0) to 7
-    const diff = date.getDate() - day + 1 // Adjust to Monday
-    const monday = new Date(date)
-    monday.setDate(diff)
-
-    const weekDates = []
-    for (let i = 0; i < 7; i++) {
-      const nextDate = new Date(monday)
-      nextDate.setDate(monday.getDate() + i)
-      weekDates.push(nextDate)
-    }
-    return weekDates
+  // İsimlerin baş harflerini alma
+  const getInitials = (name: string): string => {
+    if (!name) return ''
+    
+    return name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase()
   }
 
-  const weekDates = getWeekDates(date)
-
-  // Scroll to selected date in week view
+  // Ayın günlerini oluşturma
+  const getDaysInMonth = (year: number, month: number) => {
+    // Ayın ilk günü
+    const firstDay = new Date(year, month, 1)
+    
+    // Ayın son günü
+    const lastDay = new Date(year, month + 1, 0)
+    
+    // Önceki ayın son günleri
+    const daysFromPrevMonth = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+    
+    // Önceki ay
+    const prevMonth = month === 0 ? 11 : month - 1
+    const prevMonthYear = month === 0 ? year - 1 : year
+    const prevMonthLastDay = new Date(prevMonthYear, prevMonth + 1, 0).getDate()
+    
+    const days = []
+    
+    // Önceki ayın son günleri
+    for (let i = prevMonthLastDay - daysFromPrevMonth + 1; i <= prevMonthLastDay; i++) {
+      days.push({
+        date: new Date(prevMonthYear, prevMonth, i),
+        isCurrentMonth: false,
+        isToday: false,
+      })
+    }
+    
+    // Bu ayın günleri
+    const today = new Date()
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      const date = new Date(year, month, i)
+      days.push({
+        date,
+        isCurrentMonth: true,
+        isToday: date.toDateString() === today.toDateString(),
+      })
+    }
+    
+    // Sonraki ayın ilk günleri
+    const daysToAdd = 42 - days.length
+    const nextMonth = month === 11 ? 0 : month + 1
+    const nextMonthYear = month === 11 ? year + 1 : year
+    
+    for (let i = 1; i <= daysToAdd; i++) {
+      days.push({
+        date: new Date(nextMonthYear, nextMonth, i),
+        isCurrentMonth: false,
+        isToday: false,
+      })
+    }
+    
+    return days
+  }
+  
+  const days = getDaysInMonth(selectedYear, selectedMonth)
+  
+  // Randevu verilerini getir
   useEffect(() => {
-    if (view === "week" && !isMobile) {
-      // Scroll calendar to selected day column
-      if (calendarScrollRef.current) {
-        const selectedDayIndex = weekDates.findIndex((d) => d.toDateString() === date.toDateString())
-
-        if (selectedDayIndex >= 0) {
-          // +1 because of the time column
-          const columnWidth = calendarScrollRef.current.scrollWidth / 8
-          const scrollPosition = (selectedDayIndex + 1) * columnWidth - columnWidth / 2
-
-          calendarScrollRef.current.scrollTo({
-            left: scrollPosition,
-            behavior: "smooth",
-          })
+    const fetchAppointments = async () => {
+      if (!userStore.authUser?.id) return
+      
+      try {
+        setLoading(true)
+        
+        // Ay başlangıç ve bitiş tarihlerini oluştur
+        const startOfMonth = new Date(selectedYear, selectedMonth, 1)
+        const endOfMonth = new Date(selectedYear, selectedMonth + 1, 0)
+        
+        const startDateStr = startOfMonth.toISOString().split('T')[0]
+        const endDateStr = endOfMonth.toISOString().split('T')[0]
+        
+        // Çalışan ID'si ile belirli bir tarih aralığındaki randevuları getir
+        const response = await fetch(
+          `/api/employees/${userStore.authUser.id}/appointments?startDate=${startDateStr}&endDate=${endDateStr}`
+        )
+        
+        if (!response.ok) {
+          throw new Error('Randevu verileri getirilemedi')
         }
+        
+        const data: ApiAppointment[] = await response.json()
+        
+        // API verilerini UI formatına dönüştür
+        const formattedAppointments = data.map((apt: ApiAppointment) => {
+          // Tarih formatlaması için zaman dilimi farkını telafi et
+          let appointmentDate;
+          if (apt.date) {
+            // Zaman dilimi farkını önlemek için tarih kısmını ayrıca parse et
+            const dateStr = new Date(apt.date).toISOString().split('T')[0]; // YYYY-MM-DD formatını al
+            const [year, month, day] = dateStr.split('-').map(Number);
+            
+            // Yeni date objesi oluştur
+            appointmentDate = new Date(year, month - 1, day);
+          } else if (apt.time) {
+            // Zamandan tarih bilgisi çıkar
+            const dateStr = new Date(apt.time).toISOString().split('T')[0];
+            const [year, month, day] = dateStr.split('-').map(Number);
+            
+            // Yeni date objesi oluştur
+            appointmentDate = new Date(year, month - 1, day);
+          } else {
+            appointmentDate = new Date();
+          }
+          
+          return {
+            id: apt.id,
+            date: appointmentDate,
+            time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+            customer: {
+              name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim() || 'İsimsiz Müşteri',
+              avatar: apt.user.profile?.profileImage || "/placeholder.svg",
+              initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim() || 'İM'),
+            },
+            service: apt.service?.name || "Belirtilmemiş",
+            duration: apt.duration || apt.service?.duration || 30,
+          }
+        })
+        
+        setAppointments(formattedAppointments)
+      } catch (error) {
+        console.error('Randevu verileri yüklenirken hata:', error)
+        toast({
+          title: "Hata",
+          description: "Randevu verileri yüklenirken bir hata oluştu",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
       }
     }
-  }, [date, view, weekDates, isMobile])
+    
+    fetchAppointments()
+  }, [selectedYear, selectedMonth, userStore.authUser?.id])
 
-  // Seçili tarih için randevuları filtrele
-  const getFilteredAppointments = () => {
-    if (view === "day") {
-      return appointmentsData.filter(
-        (appointment) =>
-          appointment.date.getDate() === date.getDate() &&
-          appointment.date.getMonth() === date.getMonth() &&
-          appointment.date.getFullYear() === date.getFullYear(),
-      )
-    } else if (view === "week") {
-      return appointmentsData.filter((appointment) => {
-        const appDate = appointment.date
-        return weekDates.some(
-          (weekDate) =>
-            weekDate.getDate() === appDate.getDate() &&
-            weekDate.getMonth() === appDate.getMonth() &&
-            weekDate.getFullYear() === appDate.getFullYear(),
-        )
-      })
-    } else {
-      // Month view - return all appointments in the current month
-      return appointmentsData.filter(
-        (appointment) =>
-          appointment.date.getMonth() === date.getMonth() && appointment.date.getFullYear() === date.getFullYear(),
-      )
-    }
+  // İleri gitmek için 
+  const nextMonth = () => {
+    setCurrentDate(new Date(selectedYear, selectedMonth + 1, 1))
   }
-
-  const filteredAppointments = getFilteredAppointments()
-
-  // Önceki güne git
-  const goToPrevious = () => {
-    const newDate = new Date(date)
-    if (view === "day") {
-      newDate.setDate(newDate.getDate() - 1)
-    } else if (view === "week") {
-      newDate.setDate(newDate.getDate() - 7)
-    } else {
-      newDate.setMonth(newDate.getMonth() - 1)
-    }
-    setDate(newDate)
+  
+  // Geri gitmek için
+  const prevMonth = () => {
+    setCurrentDate(new Date(selectedYear, selectedMonth - 1, 1))
   }
-
-  // Sonraki güne git
-  const goToNext = () => {
-    const newDate = new Date(date)
-    if (view === "day") {
-      newDate.setDate(newDate.getDate() + 1)
-    } else if (view === "week") {
-      newDate.setDate(newDate.getDate() + 7)
-    } else {
-      newDate.setMonth(newDate.getMonth() + 1)
-    }
-    setDate(newDate)
-  }
-
-  // Bugüne git
+  
+  // Bugüne dönmek için
   const goToToday = () => {
-    setDate(new Date())
+    setCurrentDate(new Date())
   }
-
-  // Get appointments for a specific day in week view
+  
+  // Seçilen günün randevularını bul
   const getAppointmentsForDay = (day: Date) => {
-    return appointmentsData.filter(
-      (appointment) =>
-        appointment.date.getDate() === day.getDate() &&
-        appointment.date.getMonth() === day.getMonth() &&
-        appointment.date.getFullYear() === day.getFullYear(),
+    return appointments.filter(
+      (appointment) => appointment.date.toDateString() === day.toDateString()
     )
   }
-
-  // Belirli bir zaman dilimi için randevuları getir
-  const getAppointmentsForTimeSlot = (timeSlot: string) => {
-    return filteredAppointments.filter((appointment) => appointment.time === timeSlot)
-  }
-
-  // Get appointments for a specific time slot and day
-  const getAppointmentsForTimeSlotAndDay = (timeSlot: string, day: Date) => {
-    return appointmentsData.filter(
-      (appointment) =>
-        appointment.time === timeSlot &&
-        appointment.date.getDate() === day.getDate() &&
-        appointment.date.getMonth() === day.getMonth() &&
-        appointment.date.getFullYear() === day.getFullYear(),
-    )
-  }
-
-  // Get appointments for an hour (for mobile view)
-  const getAppointmentsForHour = (hour: string, day: Date) => {
-    return appointmentsData.filter(
-      (appointment) =>
-        appointment.time.startsWith(hour) &&
-        appointment.date.getDate() === day.getDate() &&
-        appointment.date.getMonth() === day.getMonth() &&
-        appointment.date.getFullYear() === day.getFullYear(),
-    )
-  }
-
-  // Format month and year for month view
-  const formattedMonthYear = date.toLocaleDateString("tr-TR", {
-    month: "long",
-    year: "numeric",
-  })
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 w-full">
-      <Card className="w-full">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <CardTitle>Takvimim</CardTitle>
-              <CardDescription>Randevularınızı görüntüleyin ve yönetin</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToPrevious}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Bugün
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToNext}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+    <div className="flex flex-1 flex-col gap-4 p-4">
+      {/* Page header */}
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Çalışan Takvimi</h1>
+          <p className="text-muted-foreground">Randevu takviminizi görüntüleyin ve yönetin</p>
+        </div>
+        <div className="flex items-center gap-2 mt-2 md:mt-0">
+          <Button variant="outline" size="sm" onClick={goToToday}>
+            Bugün
+          </Button>
+          <Button variant="outline" size="icon" onClick={prevMonth}>
+            <ChevronLeft className="h-4 w-4" />
+            <span className="sr-only">Önceki ay</span>
+          </Button>
+          <Button variant="outline" size="icon" onClick={nextMonth}>
+            <ChevronRight className="h-4 w-4" />
+            <span className="sr-only">Sonraki ay</span>
+          </Button>
+          <div className="ml-2 text-sm font-medium">
+            {currentDate.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}
           </div>
+        </div>
+      </div>
 
-          {/* Günlük Görünüm */}
-          <div className="mt-4">
-            <div className="text-lg font-semibold mb-4">{formattedDate}</div>
-            <div className="border rounded-md">
-              <div className="grid grid-cols-1 divide-y">
-                {timeSlots.map((timeSlot) => {
-                  const appointmentsForSlot = getAppointmentsForTimeSlot(timeSlot)
-                  return (
-                    <div key={timeSlot} className="p-2">
-                      <div className="flex items-start">
-                        <div className="w-16 text-sm font-medium text-muted-foreground pt-2">{timeSlot}</div>
-                        <div className="flex-1 min-h-[60px]">
-                          {appointmentsForSlot.length > 0
-                            ? appointmentsForSlot.map((appointment) => (
-                                <div key={appointment.id} className="p-2 mb-1 rounded-md bg-muted/20 border">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage
-                                          src={appointment.customer.avatar || "/placeholder.svg"}
-                                          alt={appointment.customer.name}
-                                        />
-                                        <AvatarFallback>{appointment.customer.initials}</AvatarFallback>
-                                      </Avatar>
-                                      <span className="text-sm font-medium">{appointment.customer.name}</span>
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-muted-foreground mt-1">
-                                    {appointment.service} • {appointment.duration} dk
-                                  </div>
-                                </div>
-                              ))
-                            : null}
+      {/* Calendar */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Aylık Takvim</CardTitle>
+          <CardDescription>
+            Randevularınızı görüntüleyin ve yönetin
+          </CardDescription>
+        </CardHeader>
+        <div className="p-3" ref={calendarRef}>
+          {/* Calendar header */}
+          <div className="grid grid-cols-7 mb-3">
+            {["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"].map((day) => (
+              <div key={day} className="text-center text-sm font-medium">
+                {day}
+              </div>
+            ))}
+          </div>
+          {/* Calendar days */}
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day, i) => {
+              const dayAppointments = getAppointmentsForDay(day.date)
+              
+              return (
+                <div
+                  key={i}
+                  className={`aspect-square p-1 ${
+                    !day.isCurrentMonth
+                      ? "opacity-50 text-muted-foreground"
+                      : day.isToday
+                      ? "bg-primary/10 text-primary"
+                      : ""
+                  }`}
+                >
+                  <div className="h-full w-full rounded-md flex flex-col">
+                    <div className="text-xs font-medium p-1">{day.date.getDate()}</div>
+                    {loading ? (
+                      <div className="flex-1 flex justify-center items-center">
+                        <div className="w-4 h-4 border-t-2 border-primary animate-spin rounded-full" />
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-hidden">
+                        {dayAppointments.length > 0 &&
+                          dayAppointments.slice(0, isMobile ? 1 : 2).map((appointment, idx) => (
+                            <div
+                              key={appointment.id}
+                              className="text-xs mb-1 truncate bg-primary/5 p-1 rounded"
+                            >
+                              {appointment.time} - {appointment.customer.name}
+                            </div>
+                          ))}
+                        {dayAppointments.length > (isMobile ? 1 : 2) && (
+                          <div className="text-xs text-center text-muted-foreground">
+                            +{dayAppointments.length - (isMobile ? 1 : 2)} daha
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </Card>
+
+      {/* Günün randevuları (Örnek için bugün) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Günlük Plan</CardTitle>
+          <CardDescription>{currentDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}</CardDescription>
+        </CardHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+          {loading ? (
+            <div className="col-span-3 flex justify-center py-8">
+              <div className="w-6 h-6 border-t-2 border-primary animate-spin rounded-full" />
+            </div>
+          ) : (
+            timeSlots.map((timeSlot) => {
+              const appointmentsAtTime = appointments.filter(
+                (appointment) =>
+                  appointment.time === timeSlot &&
+                  appointment.date.toDateString() === currentDate.toDateString()
+              )
+              
+              return (
+                <div key={timeSlot} className="border rounded-md p-2">
+                  <div className="text-sm font-medium mb-1">{timeSlot}</div>
+                  {appointmentsAtTime.length > 0 ? (
+                    appointmentsAtTime.map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="flex items-center gap-2 bg-primary/5 p-2 rounded"
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={appointment.customer.avatar} alt={appointment.customer.name} />
+                          <AvatarFallback>{appointment.customer.initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{appointment.customer.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{appointment.service}</div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground h-8 flex items-center">
+                      Müsait
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </CardHeader>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
       </Card>
     </div>
   )

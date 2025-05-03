@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/supabase/auth"
+import useUserStore from "@/app/stores/userStore"
 
 export default function BarberDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -222,22 +223,6 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90"
           onClick={handleLinkClick}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            <path d="M12 22.5v-15" />
-            <path d="M3.3 7 12 12l8.7-5" />
-          </svg>
           <span>Yeni Randevu</span>
         </Link>
       </div>
@@ -250,10 +235,25 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const userStore = useUserStore()
   const handleSignOut = async () => {
     await signOut()
   }
 
+  // Avatar fallback için kullanıcı adının baş harflerini oluştur
+  const getInitials = () => {
+    return userStore.getInitials()
+  }
+
+  // Tam adı al
+  const getFullName = () => {
+    return userStore.getFullName() || 'Kullanıcı'
+  }
+
+  // Profil resmini al
+  const getProfileImage = () => {
+    return userStore.getProfileImage() || ""
+  }
 
   return (
     <div className="relative">
@@ -261,15 +261,15 @@ function UserMenu() {
         onClick={() => setOpen(!open)}
         className="flex w-full cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent"
       >
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-violet-500 to-purple-700">
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md">
           <Avatar className="h-full w-full rounded-md">
-            <AvatarImage src="/rick-8bit.webp?height=32&width=32" alt="User" />
-            <AvatarFallback>AY</AvatarFallback>
+            <AvatarImage src={getProfileImage()} alt="User" />
+            <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
         </div>
         <div className="flex-1 text-left">
-          <p className="text-sm font-medium">Ahmet Yılmaz</p>
-          <p className="text-xs text-muted-foreground">ahmet@example.com</p>
+          <p className="text-sm font-medium">{getFullName()}</p>
+          <p className="text-xs text-muted-foreground">{userStore.dbUser?.email}</p>
         </div>
         <Settings className="h-4 w-4 text-muted-foreground" />
       </div>

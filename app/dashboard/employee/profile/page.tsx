@@ -10,54 +10,79 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
+import useUserStore from "@/app/stores/userStore"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function EmployeeProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
+  const userStore = useUserStore()
+  const { toast } = useToast()
 
-  // Basitleştirilmiş çalışan verileri
+  // Kullanıcı verileri için state
   const [employeeData, setEmployeeData] = useState({
-    name: "Mehmet Kaya",
-    email: "mehmet.kaya@example.com",
-    phone: "+90 555 123 4567",
-    position: "Berber",
-    experience: "5 yıl",
-    bio: "5 yıllık deneyimli berberim. Modern saç kesimi ve sakal tıraşı konusunda uzmanım.",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    position: "EMPLOYEE",
+    experience: "",
     skills: ["Saç Kesimi", "Sakal Tıraşı", "Saç Boyama", "Cilt Bakımı"],
   })
 
-  // Sayfa yüklendiğinde kullanıcı ID'sini al ve profil verilerini getir
+  // Sayfa yüklendiğinde kullanıcı verilerini getir
   useEffect(() => {
-    async function getUserIdAndProfile() {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const uid = session.user.id;
-        setUserId(uid);
-        fetchProfileData(uid);
-      }
+    if (userStore.dbUser) {
+      setEmployeeData({
+        firstName: userStore.dbUser.firstName || "",
+        lastName: userStore.dbUser.lastName || "",
+        email: userStore.dbUser.email || "",
+        phone: userStore.dbUser.phone || "",
+        bio: "", // API'dan alınabilir
+        position: userStore.dbUser.role || "EMPLOYEE",
+        experience: "", // API'dan alınabilir
+        skills: ["Saç Kesimi", "Sakal Tıraşı", "Saç Boyama", "Cilt Bakımı"], // API'dan alınabilir
+      });
+    } else {
+      fetchProfileData();
     }
-    
-    getUserIdAndProfile();
-  }, []);
+  }, [userStore.dbUser]);
 
   // Profil verilerini getirmek için
-  const fetchProfileData = async (uid: string) => {
-    if (!uid) return;
+  const fetchProfileData = async () => {
+    if (!userStore.authUser?.id) return;
     
     try {
-      const response = await fetch(`/api/users/${uid}`);
+      const response = await fetch(`/api/users/${userStore.authUser.id}`);
       
       if (!response.ok) {
         throw new Error('Profil bilgileri alınamadı');
       }
       
       const data = await response.json();
-      setEmployeeData(data);
+      
+      // Zustand store'a kullanıcı verilerini ekle
+      userStore.setDbUser(data);
+      
+      // Yerel state'i güncelle
+      setEmployeeData({
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        bio: data.bio || "",
+        position: data.role || "EMPLOYEE",
+        experience: data.experience || "",
+        skills: data.skills || ["Saç Kesimi", "Sakal Tıraşı", "Saç Boyama", "Cilt Bakımı"],
+      });
     } catch (error) {
       console.error("Profil bilgileri alınamadı:", error);
+      toast({
+        title: "Hata",
+        description: "Profil bilgileri yüklenirken bir hata oluştu",
+        variant: "destructive",
+      });
     }
   };
 
@@ -65,7 +90,7 @@ export default function EmployeeProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!userId) {
+    if (!userStore.authUser?.id) {
       console.error("Kullanıcı kimliği bulunamadı");
       return;
     }
@@ -73,25 +98,53 @@ export default function EmployeeProfilePage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/users/${userStore.authUser.id}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(employeeData)
+        body: JSON.stringify({
+          firstName: employeeData.firstName,
+          lastName: employeeData.lastName,
+          phone: employeeData.phone,
+        })
       });
       
       if (!response.ok) {
         throw new Error('Profil güncellenirken bir hata oluştu');
       }
       
+      const updatedUser = await response.json();
+      
+      // Zustand store'u güncelle
+      userStore.setDbUser({
+        ...userStore.dbUser!,
+        firstName: employeeData.firstName,
+        lastName: employeeData.lastName,
+        phone: employeeData.phone,
+      });
+      
       setIsEditing(false);
+      
+      toast({
+        title: "Başarılı",
+        description: "Profil bilgileriniz güncellendi",
+      });
     } catch (error) {
       console.error("Profil güncellenemedi:", error);
+      toast({
+        title: "Hata",
+        description: "Profil güncellenirken bir hata oluştu",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getFullName = () => {
+    return userStore.getFullName() || 'Çalışan';
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 w-full">
@@ -100,17 +153,14 @@ export default function EmployeeProfilePage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src="/placeholder.svg?height=80&width=80" alt={employeeData.name} />
+                <AvatarImage src={userStore.getProfileImage() || ""} alt={getFullName()} />
                 <AvatarFallback>
-                  {employeeData.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                  {userStore.getInitials()}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle>{employeeData.name}</CardTitle>
-                <CardDescription>{employeeData.position}</CardDescription>
+                <CardTitle>{getFullName()}</CardTitle>
+                <CardDescription>{employeeData.position === "EMPLOYEE" ? "Çalışan" : employeeData.position}</CardDescription>
               </div>
             </div>
             <Button onClick={() => setIsEditing(!isEditing)}>{isEditing ? "İptal" : "Profili Düzenle"}</Button>
@@ -121,19 +171,19 @@ export default function EmployeeProfilePage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Ad Soyad</Label>
+                  <Label htmlFor="firstName">Ad</Label>
                   <Input
-                    id="name"
-                    value={employeeData.name}
-                    onChange={(e) => setEmployeeData({ ...employeeData, name: e.target.value })}
+                    id="firstName"
+                    value={employeeData.firstName}
+                    onChange={(e) => setEmployeeData({ ...employeeData, firstName: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="position">Pozisyon</Label>
+                  <Label htmlFor="lastName">Soyad</Label>
                   <Input
-                    id="position"
-                    value={employeeData.position}
-                    onChange={(e) => setEmployeeData({ ...employeeData, position: e.target.value })}
+                    id="lastName"
+                    value={employeeData.lastName}
+                    onChange={(e) => setEmployeeData({ ...employeeData, lastName: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -142,7 +192,7 @@ export default function EmployeeProfilePage() {
                     id="email"
                     type="email"
                     value={employeeData.email}
-                    onChange={(e) => setEmployeeData({ ...employeeData, email: e.target.value })}
+                    disabled
                   />
                 </div>
                 <div className="space-y-2">
@@ -174,7 +224,9 @@ export default function EmployeeProfilePage() {
                 <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                   İptal
                 </Button>
-                <Button type="submit">Kaydet</Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Kaydediliyor..." : "Kaydet"}
+                </Button>
               </div>
             </form>
           ) : (
@@ -184,21 +236,21 @@ export default function EmployeeProfilePage() {
                   <h3 className="text-sm font-medium">İletişim Bilgileri</h3>
                   <div className="mt-2 space-y-1">
                     <p className="text-sm text-muted-foreground">E-posta: {employeeData.email}</p>
-                    <p className="text-sm text-muted-foreground">Telefon: {employeeData.phone}</p>
+                    <p className="text-sm text-muted-foreground">Telefon: {employeeData.phone || "Belirtilmemiş"}</p>
                   </div>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium">Çalışma Bilgileri</h3>
                   <div className="mt-2 space-y-1">
-                    <p className="text-sm text-muted-foreground">Pozisyon: {employeeData.position}</p>
-                    <p className="text-sm text-muted-foreground">Deneyim: {employeeData.experience}</p>
+                    <p className="text-sm text-muted-foreground">Pozisyon: {employeeData.position === "EMPLOYEE" ? "Çalışan" : employeeData.position}</p>
+                    <p className="text-sm text-muted-foreground">Deneyim: {employeeData.experience || "Belirtilmemiş"}</p>
                   </div>
                 </div>
               </div>
               <Separator />
               <div>
                 <h3 className="text-sm font-medium">Hakkımda</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{employeeData.bio}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{employeeData.bio || "Henüz bilgi girilmemiş."}</p>
               </div>
               <Separator />
               <div>

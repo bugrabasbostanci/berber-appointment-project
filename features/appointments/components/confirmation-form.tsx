@@ -155,11 +155,11 @@ export function ConfirmationForm() {
     }
     
     if (timeId) {
-      // Örnek zaman noktaları oluştur
+      // 45 dakikalık randevu dilimleri
       const times = [
-        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
-        "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
-        "16:00", "16:30", "17:00", "17:30", "18:00", "18:30"
+        "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+        "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+        "18:30", "19:15", "20:00", "20:45"
       ];
       
       // Zamanları taşıyan objeleri oluştur
@@ -248,8 +248,8 @@ export function ConfirmationForm() {
           throw new Error(`Geçersiz tarih/saat formatı: ${formattedDate} ${timeValue}`);
         }
         
-        // Bitiş zamanını hesapla (30 dakika ekle)
-        const endDateTime = new Date(appointmentDateTime.getTime() + 30 * 60000);
+        // Bitiş zamanını hesapla (45 dakika ekle)
+        const endDateTime = new Date(appointmentDateTime.getTime() + 45 * 60000);
         
         console.log("Randevu verileri:", {
           shopId: storedShopId,

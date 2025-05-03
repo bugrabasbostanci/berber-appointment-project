@@ -81,8 +81,8 @@ function WorkingHoursSettings({ onSave, saving }: { onSave: () => void; saving: 
       day: day.id,
       name: day.name,
       isOpen: day.id !== "sunday",
-      openTime: "09:00",
-      closeTime: "19:00",
+      openTime: "09:30",
+      closeTime: "20:45",
     })),
   )
 
@@ -229,6 +229,8 @@ function ClosureDaysSettings({ onSave, saving }: { onSave: () => void; saving: b
                         selected={date}
                         onSelect={setDate}
                         initialFocus
+                        locale={tr}
+                        weekStartsOn={1}
                         disabled={(date) =>
                           selectedDates.some(
                             (selectedDate) =>
@@ -416,6 +418,8 @@ function BlockedHoursSettings({ onSave, saving }: { onSave: () => void; saving: 
                         selected={selectedDate}
                         onSelect={setSelectedDate}
                         initialFocus
+                        locale={tr}
+                        weekStartsOn={1}
                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                       />
                     </PopoverContent>
@@ -425,29 +429,150 @@ function BlockedHoursSettings({ onSave, saving }: { onSave: () => void; saving: 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="grid gap-2">
                     <Label htmlFor="start-time">Başlangıç Saati</Label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="start-time"
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start", !startTime && "text-muted-foreground")}>
+                          <Clock className="mr-2 h-4 w-4" />
+                          {startTime ? startTime : "Başlangıç saati seçin"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-3 space-y-2">
+                          <div className="grid gap-2">
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["09:30", "10:15", "11:00", "11:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={startTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setStartTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["12:30", "13:15", "14:00", "14:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={startTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setStartTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["15:30", "16:15", "17:00", "17:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={startTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setStartTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["18:30", "19:15", "20:00", "20:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={startTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setStartTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <Input
+                              type="time"
+                              value={startTime}
+                              onChange={(e) => setStartTime(e.target.value)}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="end-time">Bitiş Saati</Label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="end-time"
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start", !endTime && "text-muted-foreground")}>
+                          <Clock className="mr-2 h-4 w-4" />
+                          {endTime ? endTime : "Bitiş saati seçin"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-3 space-y-2">
+                          <div className="grid gap-2">
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["09:30", "10:15", "11:00", "11:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={endTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setEndTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["12:30", "13:15", "14:00", "14:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={endTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setEndTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["15:30", "16:15", "17:00", "17:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={endTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setEndTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-4 text-center gap-2">
+                              {["18:30", "19:15", "20:00", "20:45"].map((time) => (
+                                <Button
+                                  key={time}
+                                  variant={endTime === time ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setEndTime(time)}
+                                >
+                                  {time}
+                                </Button>
+                              ))}
+                            </div>
+
+                          </div>
+                          <div className="pt-2 border-t">
+                            <Input
+                              type="time"
+                              value={endTime}
+                              onChange={(e) => setEndTime(e.target.value)}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 

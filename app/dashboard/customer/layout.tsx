@@ -14,6 +14,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/supabase/auth"
 import { useAuth } from "@/features/auth/hooks/use-auth"
+import useUserStore from "@/app/stores/userStore"
 
 export default function CustomerDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -97,13 +98,15 @@ export default function CustomerDashboardLayout({ children }: { children: React.
           <div className="flex h-full flex-col">
             <div className="p-4">
               <div className="mb-4 flex items-center gap-2">
-                <div className="flex aspect-square h-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <Scissors className="h-4 w-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="font-semibold">The Barber Shop</span>
-                  <span className="text-xs text-muted-foreground">Men's Club</span>
-                </div>
+                <Link href="/" className="flex items-center gap-2">
+                  <div className="flex aspect-square h-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <Scissors className="h-4 w-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="font-semibold">The Barber Shop</span>
+                    <span className="text-xs text-muted-foreground">Men's Club</span>
+                  </div>
+                </Link>
               </div>
             </div>
             <ScrollArea className="flex-1">
@@ -236,21 +239,25 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
-  const { dbUser } = useAuth()
+  const { user, dbUser } = useAuth()
+  const userStore = useUserStore()
   const handleSignOut = async () => {
     await signOut()
   }
 
   // Avatar fallback için kullanıcı adının baş harflerini oluştur
   const getInitials = () => {
-    if (dbUser?.firstName && dbUser?.lastName) {
-      return `${dbUser.firstName[0]}${dbUser.lastName[0]}`.toUpperCase()
-    } else if (dbUser?.firstName) {
-      return dbUser.firstName[0].toUpperCase()
-    } else if (dbUser?.email) {
-      return dbUser.email[0].toUpperCase()
-    }
-    return 'U'
+    return userStore.getInitials()
+  }
+
+  // Tam adı al
+  const getFullName = () => {
+    return userStore.getFullName() || 'Kullanıcı'
+  }
+
+  // Profil resmini al
+  const getProfileImage = () => {
+    return userStore.getProfileImage() || ""
   }
 
   return (
@@ -261,17 +268,13 @@ function UserMenu() {
       >
         <div className="flex h-8 w-8 items-center justify-center overflow-hidden">
           <Avatar className="h-full w-full rounded-md">
-            <AvatarImage src={dbUser?.profileImage || ""} alt="User" />
+            <AvatarImage src={getProfileImage()} alt="User" />
             <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
         </div>
         <div className="flex-1 text-left">
-          <p className="text-sm font-medium">
-            {dbUser?.firstName && dbUser?.lastName 
-              ? `${dbUser.firstName} ${dbUser.lastName}`
-              : dbUser?.firstName || dbUser?.email || "Kullanıcı"}
-          </p>
-          <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+          <p className="text-sm font-medium">{getFullName()}</p>
+          <p className="text-xs text-muted-foreground">{userStore.dbUser?.email}</p>
         </div>
         <Settings className="h-4 w-4 text-muted-foreground" />
       </div>

@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/supabase/auth"
+import { useAuth } from "@/features/auth/hooks/use-auth"
+import useUserStore from "@/app/stores/userStore"
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -220,6 +222,7 @@ function UserMenu() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const router = useRouter()
+  const userStore = useUserStore()
 
   const handleSignOut = async () => {
     try {
@@ -230,21 +233,36 @@ function UserMenu() {
     }
   }
 
+  // Avatar fallback için kullanıcı adının baş harflerini oluştur
+  const getInitials = () => {
+    return userStore.getInitials()
+  }
+
+  // Tam adı al
+  const getFullName = () => {
+    return userStore.getFullName() || 'Kullanıcı'
+  }
+
+  // Profil resmini al
+  const getProfileImage = () => {
+    return userStore.getProfileImage() || ""
+  }
+
   return (
     <div className="relative">
       <div
         onClick={() => setOpen(!open)}
         className="flex w-full cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent"
       >
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-blue-500 to-indigo-700">
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md">
           <Avatar className="h-full w-full rounded-md">
-            <AvatarImage src="/rick-8bit.webp?height=32&width=32" alt="User" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={getProfileImage()} alt="User" />
+            <AvatarFallback>{getInitials()}</AvatarFallback>
           </Avatar>
         </div>
         <div className="flex-1 text-left">
-          <p className="text-sm font-medium">Admin Kullanıcı</p>
-          <p className="text-xs text-muted-foreground">admin@example.com</p>
+          <p className="text-sm font-medium">{getFullName()}</p>
+          <p className="text-xs text-muted-foreground">{userStore.dbUser?.email}</p>
         </div>
         <Settings className="h-4 w-4 text-muted-foreground" />
       </div>

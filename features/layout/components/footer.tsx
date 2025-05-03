@@ -7,15 +7,15 @@ export function Footer() {
       <div className="container py-6">
         <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-4">
-            <Link href="#" className="text-muted-foreground hover:text-foreground">
+            <Link href="https://www.instagram.com/brbrshpdnz/" target="_blank" className="text-muted-foreground hover:text-foreground">
               <Instagram className="h-5 w-5" />
               <span className="sr-only">Instagram</span>
             </Link>
-            <Link href="#" className="text-muted-foreground hover:text-foreground">
+            <Link href="https://www.facebook.com/brbrshpdnz/" target="_blank" className="text-muted-foreground hover:text-foreground">
               <Facebook className="h-5 w-5" />
               <span className="sr-only">Facebook</span>
             </Link>
-            <Link href="#" className="text-muted-foreground hover:text-foreground">
+            <Link href="https://www.x.com" target="_blank" className="text-muted-foreground hover:text-foreground">
               <Twitter className="h-5 w-5" />
               <span className="sr-only">Twitter</span>
             </Link>
@@ -25,7 +25,7 @@ export function Footer() {
               &copy; {new Date().getFullYear()} The Barber Shop. Tüm hakları saklıdır.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              <Link href="https://bugra.dev" className="hover:underline">
+              <Link href="https://personal-website-liard-eight.vercel.app/" target="_blank" className="hover:underline">
                 Tasarım ve Geliştirme: Buğra Başbostancı
               </Link>
             </p>

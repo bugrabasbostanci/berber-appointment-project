@@ -70,9 +70,9 @@ export async function GET(req: NextRequest) {
       // Sabit zaman dilimlerini kullanabiliriz, çünkü veritabanındaki timeSlots JSON değeri
       // her durumda aynı formatta olmayabilir
       const timeSlots = [
-        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
-        "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", 
-        "16:00", "16:30", "17:00", "17:30", "18:00", "18:30"
+        "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+        "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+        "18:30", "19:15", "20:00", "20:45"
       ];
       
       // Zaten rezerve edilmiş zamanları bu dilimlerden çıkarabiliriz
@@ -85,12 +85,30 @@ export async function GET(req: NextRequest) {
         });
       });
       
+      console.log('Dolu saatler:', bookedTimes);
+      
       // Hazır bir format oluşturalım
+      timeSlots.forEach((time, index) => {
+        const isTimeBooked = bookedTimes.includes(time);
+        availableTimes.push({
+          id: (index + 1).toString(),
+          time: time,
+          available: !isTimeBooked
+        });
+      });
+    } else {
+      // Müsaitlik false ise tüm saatler müsait değil olarak işaretlensin
+      const timeSlots = [
+        "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+        "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+        "18:30", "19:15", "20:00", "20:45"
+      ];
+      
       timeSlots.forEach((time, index) => {
         availableTimes.push({
           id: (index + 1).toString(),
           time: time,
-          available: !bookedTimes.includes(time)
+          available: false
         });
       });
     }

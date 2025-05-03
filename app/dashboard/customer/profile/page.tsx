@@ -10,8 +10,8 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/features/auth/hooks/use-auth"
 import { createClient } from "@/lib/supabase/client"
+import useUserStore from "@/app/stores/userStore"
 
 // Kullanıcı tipi - Prisma şemasına uygun
 type User = {
@@ -24,11 +24,19 @@ type User = {
 }
 
 export default function ProfilePage() {
-  const { user, dbUser } = useAuth()
+  const { 
+    authUser, 
+    dbUser, 
+    getFullName, 
+    getInitials, 
+    setDbUser, 
+    getProfileImage,
+    isGoogleUser,
+    getGoogleData 
+  } = useUserStore()
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [userData, setUserData] = useState<User | null>(null)
   const settingsTabRef = useRef<HTMLButtonElement>(null)
   const [activeTab, setActiveTab] = useState("info")
   const [formData, setFormData] = useState({
@@ -44,48 +52,64 @@ export default function ProfilePage() {
 
   // Kullanıcı verilerini getir
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user?.id) {
-        toast({
-          title: "Kimlik doğrulama hatası",
-          description: "Kullanıcı bilgilerinize erişilemedi",
-          variant: "destructive",
-        })
-        return
-      }
-
-      try {
-        const response = await fetch(`/api/users/${user.id}`)
-        
-        if (!response.ok) {
-          throw new Error("Kullanıcı verileri getirilemedi")
-        }
-        
-        const data = await response.json()
-        setUserData(data)
-        
-        // Form verilerini başlat
-        setFormData({
-          firstName: data.firstName || "",
-          lastName: data.lastName || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: ""
-        })
-      } catch (error) {
-        console.error("Profil verisi yüklenirken hata:", error)
-        toast({
-          title: "Bir hata oluştu",
-          description: "Profil bilgileriniz yüklenemedi. Lütfen tekrar deneyin.",
-          variant: "destructive",
-        })
-      }
+    if (!authUser?.id) {
+      toast({
+        title: "Kimlik doğrulama hatası",
+        description: "Kullanıcı bilgilerinize erişilemedi",
+        variant: "destructive",
+      })
+      return
     }
 
-    fetchUserData()
-  }, [user, toast])
+    // Form verilerini dbUser ile başlat
+    if (dbUser) {
+      setFormData({
+        firstName: dbUser.firstName || "",
+        lastName: dbUser.lastName || "",
+        email: dbUser.email || "",
+        phone: dbUser.phone || "",
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: ""
+      })
+    } else {
+      // dbUser yoksa API'dan getir
+      const fetchUserData = async () => {
+        try {
+          const response = await fetch(`/api/users/${authUser.id}`)
+          
+          if (!response.ok) {
+            throw new Error("Kullanıcı verileri getirilemedi")
+          }
+          
+          const data = await response.json()
+          
+          // Zustand store'a ekle
+          setDbUser(data)
+          
+          // Form verilerini güncelle
+          setFormData({
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: ""
+          })
+        } catch (error) {
+          console.error("Profil verisi yüklenirken hata:", error)
+          toast({
+            title: "Bir hata oluştu",
+            description: "Profil bilgileriniz yüklenemedi. Lütfen tekrar deneyin.",
+            variant: "destructive",
+          })
+        }
+      }
+
+      fetchUserData()
+    }
+  }, [authUser, dbUser, toast, setDbUser])
 
   // Form değişikliklerini takip et
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,7 +196,7 @@ export default function ProfilePage() {
         phone: formData.phone
       }
 
-      const response = await fetch(`/api/users/${user?.id}`, {
+      const response = await fetch(`/api/users/${authUser?.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -185,14 +209,23 @@ export default function ProfilePage() {
         throw new Error(errorData.error || "Profil güncellenemedi")
       }
 
+      // Güncel verileri yeniden getir
+      const updatedUser = await response.json()
+      
+      // Zustand store'u güncelle
+      if (dbUser) {
+        setDbUser({
+          ...dbUser,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone
+        })
+      }
+
       toast({
         title: "Profil güncellendi",
         description: "Bilgileriniz başarıyla kaydedildi",
       })
-
-      // Güncel verileri yeniden getir
-      const updatedUser = await response.json()
-      setUserData(updatedUser)
       
       // Şifre alanlarını temizle
       setFormData(prev => ({
@@ -213,27 +246,31 @@ export default function ProfilePage() {
     }
   }
 
-  // Kullanıcı adının baş harflerini alma
-  const getInitials = () => {
-    const first = formData.firstName.charAt(0)
-    const last = formData.lastName.charAt(0)
-    return first && last ? `${first}${last}` : user?.email?.charAt(0).toUpperCase() || "U"
-  }
-
-  // Tam ad oluşturma
-  const getFullName = () => {
-    if (formData.firstName && formData.lastName) {
-      return `${formData.firstName} ${formData.lastName}`
-    }
-    return formData.email || "Kullanıcı"
-  }
-
   // Tab değiştirme fonksiyonu
   const switchToSettings = () => {
     setActiveTab("settings")
   }
 
-  if (!user) {
+  // Profil resmi URL'ini al
+  const profileImageUrl = getProfileImage();
+  
+  // Google kullanıcısı mı kontrol et
+  const isGoogle = isGoogleUser();
+  
+  // Google meta verilerini al
+  const googleData = getGoogleData();
+  
+  // Debug için
+  console.log('Profil Sayfası Debug:', {
+    dbUser,
+    isGoogle,
+    googleData,
+    fullName: getFullName(),
+    hasGoogleData: !!googleData,
+    email: dbUser?.email
+  });
+  
+  if (!authUser) {
     return (
       <div className="flex justify-center items-center h-full">
         <p>Lütfen giriş yapın</p>
@@ -253,11 +290,47 @@ export default function ProfilePage() {
             <CardHeader className="pb-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src="/placeholder.svg?height=80&width=80" alt={getFullName()} />
+                  <AvatarImage src={profileImageUrl || "/placeholder.svg?height=80&width=80"} alt={getFullName()} />
                   <AvatarFallback className="text-lg">{getInitials()}</AvatarFallback>
                 </Avatar>
                 <div>
                   <CardTitle className="text-xl">{getFullName()}</CardTitle>
+                  
+                  {/* Google meta verilerinden isim ve soyisim bilgilerini göster */}
+                  {isGoogle && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <p className="mb-1">
+                        <span className="font-medium">Google hesabı ile giriş yapıldı</span>
+                      </p>
+                      {googleData && googleData.given_name && (
+                        <p className="mb-1">
+                          <span className="font-medium">Ad:</span> {googleData.given_name}
+                        </p>
+                      )}
+                      {googleData && googleData.family_name && (
+                        <p className="mb-1">
+                          <span className="font-medium">Soyad:</span> {googleData.family_name}
+                        </p>
+                      )}
+                      {googleData && googleData.email && (
+                        <p className="mb-1">
+                          <span className="font-medium">E-posta:</span> {googleData.email}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {isGoogle && (
+                    <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="16" height="16">
+                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+                        <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+                        <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+                        <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+                      </svg>
+                      Google hesabınızla giriş yaptınız
+                    </p>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -302,6 +375,20 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
+
+              {/* Google kullanıcısı için bilgi */}
+              {isGoogle && googleData && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-100">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Google hesabınızdan alınan bilgiler</h4>
+                  <p className="text-sm text-blue-700">Google hesabınız ile giriş yaptığınız için profil bilgileriniz Google'dan otomatik olarak alınmıştır.</p>
+                  
+                  {googleData.locale && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      <span className="font-medium">Dil/Bölge:</span> {googleData.locale}
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
             <CardFooter>
               <Button onClick={switchToSettings}>
@@ -314,6 +401,49 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle>Hesap Ayarları</CardTitle>
+              {isGoogle && googleData && (
+                <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                  <p className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="14" height="14">
+                      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+                      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+                      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+                      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+                    </svg>
+                    Google hesabınızla bağlantılı olarak giriş yaptınız
+                  </p>
+                  {googleData.email && (
+                    <p>
+                      E-posta: <span className="font-medium">{googleData.email}</span>
+                    </p>
+                  )}
+                  {googleData.given_name && (
+                    <p>
+                      Ad: <span className="font-medium">{googleData.given_name}</span>
+                    </p>
+                  )}
+                  {!googleData.given_name && (
+                    <p>
+                      Ad: <span className="font-medium">Belirtilmemiş</span>
+                    </p>
+                  )}
+                  {googleData.family_name && (
+                    <p>
+                      Soyad: <span className="font-medium">{googleData.family_name}</span>
+                    </p>
+                  )}
+                  {!googleData.family_name && (
+                    <p>
+                      Soyad: <span className="font-medium">Belirtilmemiş</span>
+                    </p>
+                  )}
+                  {googleData.email_verified && (
+                    <p className="text-green-600">
+                      <span className="font-medium">✓</span> E-posta doğrulanmış
+                    </p>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <form onSubmit={handleSubmit}>
@@ -386,13 +516,13 @@ export default function ProfilePage() {
                     type="button" 
                     variant="outline" 
                     onClick={() => {
-                      // Form verilerini sıfırla
-                      if (userData) {
+                      // Form verilerini dbUser ile sıfırla
+                      if (dbUser) {
                         setFormData({
-                          firstName: userData.firstName || "",
-                          lastName: userData.lastName || "",
-                          email: userData.email || "",
-                          phone: userData.phone || "",
+                          firstName: dbUser.firstName || "",
+                          lastName: dbUser.lastName || "",
+                          email: dbUser.email || "",
+                          phone: dbUser.phone || "",
                           currentPassword: "",
                           newPassword: "",
                           confirmPassword: ""

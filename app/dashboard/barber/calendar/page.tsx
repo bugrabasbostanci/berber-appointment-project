@@ -9,14 +9,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // Time slots for daily view
 const timeSlots = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", 
-  "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", 
-  "17:00", "17:30", "18:00"
+  "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+  "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+  "18:30", "19:15", "20:00", "20:45"
 ]
 
 // Tip tanımlamaları
 type AppointmentType = {
   id: string
+  date: Date
   time: string
   duration: number
   customer: {
@@ -130,8 +131,29 @@ export default function AppointmentsCalendarPage() {
                 ? `${apt.shop.owner.firstName || ''} ${apt.shop.owner.lastName || ''}`.trim()
                 : "Atanmamış"
               
+              // 7. Tarih bilgisini zaman dilimi problemi olmadan ayarla
+              let appointmentDateTime;
+              if (apt.date) {
+                // Tarih bilgisi varsa, tarih kısmını ayrıca parse et
+                const dateStr = new Date(apt.date).toISOString().split('T')[0]; // YYYY-MM-DD formatı
+                const [year, month, day] = dateStr.split('-').map(Number);
+                
+                // Yeni date objesi oluştur (zaman dilimi etkisini kaldırarak)
+                appointmentDateTime = new Date(year, month - 1, day);
+              } else if (apt.time) {
+                // Zaman bilgisinden tarih kısmını çıkar
+                const dateStr = new Date(apt.time).toISOString().split('T')[0];
+                const [year, month, day] = dateStr.split('-').map(Number);
+                
+                // Yeni date objesi oluştur
+                appointmentDateTime = new Date(year, month - 1, day);
+              } else {
+                appointmentDateTime = new Date();
+              }
+              
               return {
                 id: apt.id,
+                date: appointmentDateTime, // Tarih bilgisi
                 time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
                 duration,
                 customer: {
@@ -366,8 +388,8 @@ function DailyView({
               // Randevunun konumu ve yüksekliğinin hesaplanması
               const [hours, minutes] = appointment.time.split(":").map(Number)
               const totalMinutesStart = hours * 60 + minutes
-              const dayStart = 9 * 60 // 09:00
-              const dayEnd = 18 * 60 // 18:00
+              const dayStart = 9 * 60 + 30 // 09:30
+              const dayEnd = 20 * 60 + 45 // 20:45
               const dayLength = dayEnd - dayStart
               
               const top = ((totalMinutesStart - dayStart) / dayLength) * 100

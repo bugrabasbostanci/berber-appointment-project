@@ -9,12 +9,14 @@ import { Menu, Home, Scissors, Info, Star, Phone, User, LayoutDashboard, Setting
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/features/auth/providers/auth-provider"
 import { createClient } from "@/lib/supabase/client"
+import useUserStore from "@/app/stores/userStore"
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const { user, dbUser } = useAuth()
-  const isLoggedIn = !!user && !!dbUser
+  const userStore = useUserStore()
+  const isLoggedIn = !!userStore.isAuthenticated && !!userStore.dbUser
 
   const closeSheet = () => setOpen(false)
   const toggleSheet = () => setOpen(!open)
@@ -29,27 +31,26 @@ export function MobileSidebar() {
   ]
 
   // Kullanıcı giriş yapmışsa ek navigasyon öğeleri
-  const userNavItems = isLoggedIn && dbUser
+  const userNavItems = isLoggedIn && userStore.dbUser
     ? [
-        { title: "Dashboard", href: `/dashboard/${dbUser.role.toLowerCase()}`, icon: LayoutDashboard },
-        { title: "Profil", href: `/dashboard/${dbUser.role.toLowerCase()}/profile`, icon: User },
-        { title: "Ayarlar", href: `/dashboard/${dbUser.role.toLowerCase()}/settings`, icon: Settings },
+        { title: "Dashboard", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}`, icon: LayoutDashboard },
+        { title: "Profil", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}/profile`, icon: User },
+        { title: "Ayarlar", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}/settings`, icon: Settings },
       ]
     : []
 
-  // Kullanıcı adının baş harflerini al
-  const fullName = isLoggedIn && dbUser 
-    ? `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Kullanıcı'
-    : ""
+  // Kullanıcı bilgilerini Zustand store'dan al
+  const getFullName = () => {
+    return userStore.getFullName() || 'Kullanıcı'
+  }
 
-  const initials = fullName
-    ? fullName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .substring(0, 2)
-    : ""
+  const getInitials = () => {
+    return userStore.getInitials()
+  }
+
+  const getProfileImage = () => {
+    return userStore.getProfileImage() || ""
+  }
 
   // Oturum kapatma işlevi
   const handleSignOut = async () => {
@@ -69,15 +70,15 @@ export function MobileSidebar() {
         <SheetContent side="left" className="flex flex-col p-0">
           <SheetHeader className="border-b p-4">
             <SheetTitle className="flex items-center">
-              {isLoggedIn && dbUser ? (
+              {isLoggedIn && userStore.dbUser ? (
                 <div className="flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={dbUser.profileImage || ""} alt={fullName} />
-                    <AvatarFallback>{initials}</AvatarFallback>
+                    <AvatarImage src={getProfileImage()} alt={getFullName()} />
+                    <AvatarFallback>{getInitials()}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{fullName}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
+                    <span className="truncate font-semibold">{getFullName()}</span>
+                    <span className="truncate text-xs text-muted-foreground">{userStore.dbUser.email}</span>
                   </div>
                 </div>
               ) : (

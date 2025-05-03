@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, Clock, Scissors, Loader2 } from "lucide-react"
+import { Calendar, Clock, Scissors, Loader2, User } from "lucide-react"
 import Link from "next/link"
+import useUserStore from "@/app/stores/userStore"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +28,9 @@ interface Appointment {
 }
 
 export default function CustomerDashboardPage() {
+  // Zustand store'dan kullanıcı bilgilerini al
+  const { dbUser, getFullName, loading: userLoading } = useUserStore()
+  
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,13 +61,26 @@ export default function CustomerDashboardPage() {
               // Null veya undefined kontrolü
               if (!apt) return null;
               
+              // Tarih formatlaması yaparken zaman dilimi farkını telafi et
+              let appointmentDate;
+              if (apt.date) {
+                // Zaman dilimi farkını önlemek için tarih kısmını ayrıca parse et
+                const dateStr = apt.date.split('T')[0]; // YYYY-MM-DD formatını al
+                const [year, month, day] = dateStr.split('-').map(Number);
+                
+                // Yeni date objesi oluştur
+                appointmentDate = new Date(year, month - 1, day);
+              } else {
+                appointmentDate = new Date();
+              }
+              
               return {
                 id: apt.id || "unknown",
-                date: apt.date ? new Date(apt.date).toLocaleDateString('tr-TR', {
+                date: appointmentDate.toLocaleDateString('tr-TR', {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric'
-                }) : "-",
+                }),
                 time: apt.time ? new Date(apt.time).toLocaleTimeString('tr-TR', {
                   hour: '2-digit',
                   minute: '2-digit'
@@ -120,6 +137,31 @@ export default function CustomerDashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
+      {/* Kullanıcı Bilgileri Bölümü */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <CardTitle>Hoş Geldiniz, {getFullName()}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {userLoading ? (
+            <div className="flex justify-center items-center py-2">
+              <p>Kullanıcı bilgileri yükleniyor...</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                
+                <User className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">{getFullName()}</h3>
+                <p className="text-sm text-muted-foreground">{dbUser?.email}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
       {/* Upcoming appointments section */}
       <Card className="flex-1">
         <CardHeader className="pb-3">

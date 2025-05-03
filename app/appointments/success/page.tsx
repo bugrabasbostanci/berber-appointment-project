@@ -35,7 +35,7 @@ export default function AppointmentSuccessPage() {
         // ISO formatındaysa (YYYY-MM-DD), Türkçe formatına çevir
         if (selectedDate.includes('-')) {
           const [year, month, day] = selectedDate.split('-').map(Number)
-          const dateObj = new Date(year, month - 1, day + 1)
+          const dateObj = new Date(year, month - 1, day)
           formattedDate = dateObj.toLocaleDateString('tr-TR', {
             day: 'numeric',
             month: 'long',

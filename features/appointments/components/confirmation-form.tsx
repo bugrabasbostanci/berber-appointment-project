@@ -54,8 +54,13 @@ export function ConfirmationForm() {
         // ISO formatındaysa (YYYY-MM-DD), Türkçe formatına çevir
         if (selectedDate.includes('-')) {
           const dateParts = selectedDate.split('-');
-          const dateObj = new Date(parseInt(dateParts[0]) , parseInt(dateParts[1]) - 1, parseInt(dateParts[2]) + 1);
-          formattedDate = dateObj.toLocaleDateString('tr-TR');
+          const dateObj = new Date(parseInt(dateParts[0]) , parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+          formattedDate = dateObj.toLocaleDateString('tr-TR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          });
+          console.log(`ONAY SAYFASI - Orijinal seçilen tarih: ${selectedDate}`);
         }
       } catch (error) {
         console.error('Tarih formatı dönüştürme hatası:', error);

@@ -162,9 +162,14 @@ export function DateSelectionForm() {
   const handleContinue = () => {
     if (date && shopId) {
       // Seçilen tarihi localStorage'a kaydet
-      localStorage.setItem('selectedDate', date.toISOString().split('T')[0]) // YYYY-MM-DD formatında
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Ay 0'dan başlar, +1 ekle ve 2 haneli yap
+      const day = date.getDate().toString().padStart(2, '0'); // Günü 2 haneli yap
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      localStorage.setItem('selectedDate', formattedDate) // YYYY-MM-DD formatında
       localStorage.setItem('selectedShopId', shopId)
-      console.log(`Tarih seçim formundan kaydedilen değerler: tarih=${date.toISOString().split('T')[0]}, dükkan=${shopId}`);
+      console.log(`Tarih seçim formundan kaydedilen değerler: tarih=${formattedDate}, dükkan=${shopId}`);
       
       router.push("/appointments/new/time")
     }
@@ -364,7 +369,9 @@ export function DateSelectionForm() {
                       )}
                       onClick={() => {
                         if (!dayIsDisabled) {
-                          const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+                          // const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+                          // Tarihi yerel saat dilimi yerine UTC olarak oluştur
+                          const newDate = new Date(Date.UTC(currentMonth.getFullYear(), currentMonth.getMonth(), day));
                           setDate(newDate)
                         }
                       }}

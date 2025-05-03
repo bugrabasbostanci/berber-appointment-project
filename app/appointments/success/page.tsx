@@ -1,11 +1,64 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Navbar } from "@/features/layout/components/navbar"
 import { Footer } from "@/features/layout/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, Calendar, Home } from "lucide-react"
+import { CheckCircle, Calendar, Home, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function AppointmentSuccessPage() {
+  const [appointmentDetails, setAppointmentDetails] = useState({
+    date: "",
+    time: "",
+    staff: "",
+    staffRole: "",
+    customerName: "",
+    customerPhone: ""
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // localStorage'dan randevu bilgilerini alma
+    const selectedDate = localStorage.getItem('selectedDate')
+    const timeValue = localStorage.getItem('selectedTimeValue') || localStorage.getItem('selectedTime')
+    const staffName = localStorage.getItem('selectedStaffName')
+    const staffRole = localStorage.getItem('selectedStaffRole') || "Berber"
+    const customerName = localStorage.getItem('customerName')
+    const customerPhone = localStorage.getItem('customerPhone')
+    
+    if (selectedDate) {
+      // Tarih formatını düzenleme
+      let formattedDate = selectedDate
+      try {
+        // ISO formatındaysa (YYYY-MM-DD), Türkçe formatına çevir
+        if (selectedDate.includes('-')) {
+          const [year, month, day] = selectedDate.split('-').map(Number)
+          const dateObj = new Date(year, month - 1, day + 1)
+          formattedDate = dateObj.toLocaleDateString('tr-TR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })
+        }
+      } catch (error) {
+        console.error('Tarih formatı dönüştürme hatası:', error)
+      }
+      
+      setAppointmentDetails({
+        date: formattedDate,
+        time: timeValue || "Belirtilmemiş",
+        staff: staffName || "Belirtilmemiş",
+        staffRole: staffRole,
+        customerName: customerName || "Belirtilmemiş",
+        customerPhone: customerPhone || "Belirtilmemiş"
+      })
+    }
+    
+    setLoading(false)
+  }, [])
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
@@ -18,28 +71,34 @@ export default function AppointmentSuccessPage() {
             <CardTitle className="text-2xl font-bold">Randevunuz Oluşturuldu!</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-muted p-4 rounded-lg space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Tarih:</span>
-                <span className="font-medium">15 Temmuz 2023</span>
+            {loading ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Saat:</span>
-                <span className="font-medium">14:00</span>
+            ) : (
+              <div className="bg-muted p-4 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tarih:</span>
+                  <span className="font-medium">{appointmentDetails.date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Saat:</span>
+                  <span className="font-medium">{appointmentDetails.time}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Personel:</span>
+                  <span className="font-medium">{appointmentDetails.staff} ({appointmentDetails.staffRole})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ad Soyad:</span>
+                  <span className="font-medium">{appointmentDetails.customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Telefon:</span>
+                  <span className="font-medium">{appointmentDetails.customerPhone}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Personel:</span>
-                <span className="font-medium">Ahmet Yılmaz (Berber)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ad Soyad:</span>
-                <span className="font-medium">Mehmet Aydın</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Telefon:</span>
-                <span className="font-medium">0555 123 4567</span>
-              </div>
-            </div>
+            )}
             <p className="text-sm text-center text-muted-foreground">
               Randevunuzu görüntülemek veya iptal etmek için randevular sayfasına gidiniz.
             </p>

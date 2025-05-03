@@ -54,7 +54,7 @@ export function ConfirmationForm() {
         // ISO formatındaysa (YYYY-MM-DD), Türkçe formatına çevir
         if (selectedDate.includes('-')) {
           const dateParts = selectedDate.split('-');
-          const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+          const dateObj = new Date(parseInt(dateParts[0]) , parseInt(dateParts[1]) - 1, parseInt(dateParts[2]) + 1);
           formattedDate = dateObj.toLocaleDateString('tr-TR');
         }
       } catch (error) {
@@ -207,6 +207,10 @@ export function ConfirmationForm() {
         
         console.log('Randevu oluşturma verileri:', { storedShopId, storedStaffId, storedDate, storedTime });
         
+        // Kullanıcı bilgilerini localStorage'a kaydet (başarı sayfasında gösterilecek)
+        localStorage.setItem('customerName', name);
+        localStorage.setItem('customerPhone', phone);
+        
         // Eksik veri kontrolü
         const missingFields = [];
         if (!storedShopId) missingFields.push('Dükkan');
@@ -229,10 +233,16 @@ export function ConfirmationForm() {
           const selectedTimeObject = availableTimes.find(t => t.id === storedTime);
           if (selectedTimeObject) {
             timeValue = selectedTimeObject.time;
+            // Zaman değerini sonraki sayfada kullanmak için localStorage'a kaydet
+            localStorage.setItem('selectedTimeValue', timeValue);
           } else {
             console.warn('Seçilen saat bulunamadı, varsayılan değer kullanılacak:', timeValue);
           }
         }
+        
+        // Personel bilgilerini de localStorage'a kaydet
+        localStorage.setItem('selectedStaffName', appointmentDetails.staff);
+        localStorage.setItem('selectedStaffRole', appointmentDetails.staffRole);
         
         // ISO formatında tarih/zaman oluştur: "2025-05-01T14:30:00"
         // Tarih formatını kontrol et - localStorage'dan gelen değer genellikle "YYYY-MM-DD" formatında

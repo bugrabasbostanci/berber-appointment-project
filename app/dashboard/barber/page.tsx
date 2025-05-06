@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
+import { formatFullDate, formatTime } from "@/features/shared/utils/date-utils"
 
 // Tip tanımlamaları
 type AppointmentType = {
@@ -44,12 +45,7 @@ export default function BarberDashboardPage() {
 
   // Format today's date
   const today = new Date()
-  const formattedDate = today.toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    weekday: "long",
-  })
+  const formattedDate = formatFullDate(today.toISOString())
   
   // Günün formatlanmış tarihi (yyyy-mm-dd)
   const todayFormatted = today.toISOString().split('T')[0]
@@ -91,17 +87,22 @@ export default function BarberDashboardPage() {
         const customersData = await customersResponse.json()
         
         // API verilerini UI için uygun formata dönüştürme
-        const formattedAppointments = appointmentsData.map((apt: ApiAppointment) => ({
-          id: apt.id,
-          time: new Date(apt.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-          customer: {
-            name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim(),
-            avatar: apt.user.profile?.profileImage || "/placeholder.svg",
-            initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim()),
-            phone: apt.user.phone || "-",
-          },
-          service: apt.service?.name || "Belirtilmemiş",
-        }))
+        const formattedAppointments = appointmentsData.map((apt: ApiAppointment) => {
+          // formatTime fonksiyonunu kullanarak saati formatla
+          const formattedTime = formatTime(new Date(apt.time).toISOString())
+          
+          return {
+            id: apt.id,
+            time: formattedTime,
+            customer: {
+              name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim(),
+              avatar: apt.user.profile?.profileImage || "/placeholder.svg",
+              initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim()),
+              phone: apt.user.phone || "-",
+            },
+            service: apt.service?.name || "Belirtilmemiş",
+          }
+        })
         
         setTodaysAppointments(formattedAppointments)
         setCustomerCount(customersData.count || 0)

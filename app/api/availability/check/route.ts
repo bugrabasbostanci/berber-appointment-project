@@ -27,36 +27,31 @@ export async function GET(req: NextRequest) {
     // EmployeeId yoksa veya boş string ise, önce veritabanında düzgün çalışan bir personel bulmaya çalışalım
     let finalEmployeeId = employeeId || '';
     
+    // Henüz bir personel seçilmemişse (employeeId boş gelmiş) tüm saatleri müsait olarak döndür
     if (!finalEmployeeId || finalEmployeeId === '') {
-      console.log('EmployeeId eksik, dükkana bağlı personel aranıyor...');
+      console.log('EmployeeId eksik, tüm saatleri müsait olarak gösteriyoruz. Personel seçildiğinde gerçek müsaitlik kontrol edilecek.');
       
-      try {
-        // Veritabanından dükkana bağlı bir personel bul
-        const employee = await prisma.user.findFirst({
-          where: {
-            profile: {
-              availableTime: {
-                shopId: shopId
-              }
-            },
-            role: {
-              in: ['BARBER', 'EMPLOYEE']
-            }
-          },
-          select: {
-            id: true
-          }
-        });
-        
-        if (employee) {
-          console.log(`Veritabanından bir personel bulundu, ID: ${employee.id}`);
-          finalEmployeeId = employee.id;
-        } else {
-          console.log('Veritabanında bu dükkana bağlı personel bulunamadı');
-        }
-      } catch (dbError) {
-        console.error('Personel arama hatası:', dbError);
-      }
+      // Tüm saat dilimlerini içeren varsayılan dizi
+      const timeSlots = [
+        "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
+        "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
+        "18:30", "19:15", "20:00", "20:45"
+      ];
+      
+      // Tüm saatleri müsait olarak işaretle
+      const availableTimes = timeSlots.map((time, index) => ({
+        id: (index + 1).toString(),
+        time: time,
+        available: true
+      }));
+      
+      return NextResponse.json({
+        success: true,
+        isAvailable: true,
+        bookedTimeSlots: [], // Boş dizi - randevu yok
+        availableTimes: availableTimes,
+        date: date.toISOString().split('T')[0]
+      });
     }
     
     // Müsaitlik durumunu kontrol et
@@ -75,24 +70,37 @@ export async function GET(req: NextRequest) {
         "18:30", "19:15", "20:00", "20:45"
       ];
       
-      // Zaten rezerve edilmiş zamanları bu dilimlerden çıkarabiliriz
-      const bookedTimes = availabilityData.bookedTimeSlots.map(slot => {
-        // Date nesnesini "HH:MM" formatına dönüştür  
-        return new Date(slot.start).toLocaleTimeString('tr-TR', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: false
+      // Rezerve edilmiş randevuları daha güvenli bir şekilde kontrol edelim
+      console.log('Dolu randevular:', availabilityData.bookedTimeSlots);
+      
+      // Her bir zaman dilimi için kontrolü iyileştirelim
+      timeSlots.forEach((timeSlot, index) => {
+        // Zaman dilimini saat ve dakika olarak ayıralım (11:00 -> saat: 11, dakika: 0)
+        const [hour, minute] = timeSlot.split(':').map(Number);
+        
+        // Bu zaman dilimi için bir Date nesnesi oluşturalım
+        const slotDate = new Date(date);
+        slotDate.setHours(hour, minute, 0, 0);
+        
+        // Randevular içerisinde bu zaman dilimiyle çakışan var mı kontrol edelim
+        const isTimeBooked = availabilityData.bookedTimeSlots.some(bookedSlot => {
+          const bookedStart = new Date(bookedSlot.start);
+          const bookedEnd = new Date(bookedSlot.end);
+          
+          // Saat ve dakikaları alalım
+          const bookedStartHour = bookedStart.getHours();
+          const bookedStartMinute = bookedStart.getMinutes();
+          
+          // bookedStartHour ve bookedStartMinute değerlerini logla
+          console.log(`Randevu zamanı: ${bookedStartHour}:${bookedStartMinute} - Kontrol edilen saat: ${hour}:${minute}`);
+          
+          // Basit bir şekilde, randevu başlangıç saati ve dakikası bizim slot saati ve dakikamıza eşit mi kontrol edelim
+          return bookedStartHour === hour && bookedStartMinute === minute;
         });
-      });
-      
-      console.log('Dolu saatler:', bookedTimes);
-      
-      // Hazır bir format oluşturalım
-      timeSlots.forEach((time, index) => {
-        const isTimeBooked = bookedTimes.includes(time);
+        
         availableTimes.push({
           id: (index + 1).toString(),
-          time: time,
+          time: timeSlot,
           available: !isTimeBooked
         });
       });

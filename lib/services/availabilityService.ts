@@ -270,56 +270,32 @@ export async function checkAvailabilityWithAppointments(
   bookedTimeSlots: { start: Date; end: Date }[];
 }> {
   try {
-    // Eğer userId tanımlanmamışsa, null ise veya "undefined" ise varsayılan müsaitlik bilgilerini kullanalım
+    // Eğer userId tanımlanmamışsa, null ise veya "undefined" ise boş liste döndürüyoruz
+    // Bu, henüz bir personel seçilmemişse, tüm zamanları boş göstermek anlamına gelir
     if (!userId || userId === "undefined" || userId === '') {
-      console.log(`checkAvailabilityWithAppointments: userId geçerli değil (${userId}). Varsayılan değerler kullanılacak.`);
-      
-      // O gün için mevcut randevuları getir (dükkan bazında)
-      const appointments = await prisma.appointment.findMany({
-        where: {
-          shopId,
-          date
-        },
-        select: {
-          time: true,
-          endTime: true
-        }
-      });
-      
-      // Randevulardan dolu saatleri döndür, müsaitliği true olarak belirt
+      console.log(`checkAvailabilityWithAppointments: userId geçerli değil (${userId}). Müsaitlik 'false' ve boş randevu listesi döndürülüyor.`);
       return {
-        isAvailable: true,
-        availableTimeSlots: [], // Boş array, UI varsayılan zamanları kullanacak
-        bookedTimeSlots: appointments.map(app => ({
-          start: app.time,
-          end: app.endTime
-        }))
+        isAvailable: false,
+        availableTimeSlots: [],
+        bookedTimeSlots: []
       };
     }
+
+    // İlk olarak dükkan bilgilerini getirelim (berber ID'sini bilmek için)
+    const shop = await prisma.shop.findUnique({
+      where: { id: shopId },
+      select: {
+        id: true,
+        ownerId: true
+      }
+    });
     
-    // userId "default-" ile başlıyorsa, bu varsayılan personel demektir, hataya düşmesini engelleyelim
-    if (userId.startsWith('default-')) {
-      console.log(`Varsayılan personel ID kullanıldı: ${userId}. Varsayılan değerler döndürülüyor.`);
-      
-      // O gün için mevcut randevuları getir (dükkan bazında)
-      const appointments = await prisma.appointment.findMany({
-        where: {
-          shopId,
-          date
-        },
-        select: {
-          time: true,
-          endTime: true
-        }
-      });
-      
+    if (!shop) {
+      console.log(`Dükkan bulunamadı: shopId=${shopId}`);
       return {
         isAvailable: true,
-        availableTimeSlots: [], // Boş döndürerek varsayılan zamanların kullanılmasını sağlayacağız
-        bookedTimeSlots: appointments.map(app => ({
-          start: app.time,
-          end: app.endTime
-        }))
+        availableTimeSlots: [],
+        bookedTimeSlots: []
       };
     }
     
@@ -349,17 +325,41 @@ export async function checkAvailabilityWithAppointments(
     }
 
     // O gün için mevcut randevuları getir
-    const appointments = await prisma.appointment.findMany({
+    // Artık sadece belirli çalışana ait randevuları filtreleyeceğiz
+    const allAppointments = await prisma.appointment.findMany({
       where: {
         shopId,
         date
-        // userId'yi sorgudan çıkartalım çünkü bu personelin ID'si, randevuları kaydettiğimiz yerde müşteri ID'si var
       },
       select: {
+        id: true,
         time: true,
-        endTime: true
+        endTime: true,
+        notes: true
       }
     });
+    
+    // Notes alanından employeeId bilgisini çıkarıp, sadece ilgili çalışanın randevularını filtreleme
+    const appointments = allAppointments.filter(app => {
+      // Eğer personel ID'si belirtilmemişse veya berber ID'si ise tüm randevuları göster
+      if (!userId || userId === shop?.ownerId) {
+        return true;
+      }
+      
+      // Personel seçiliyse, sadece o personele ait randevuları göster
+      if (app.notes && app.notes.includes(`EmployeeId:${userId}`)) {
+        return true;
+      }
+      
+      // Personel belirtilmemiş randevular berber içindir
+      if (!app.notes || !app.notes.includes('EmployeeId:')) {
+        return false; // Personel için bu randevuları gösterme
+      }
+      
+      return false;
+    });
+    
+    console.log(`${allAppointments.length} randevudan ${appointments.length} tanesi ${userId} ID'li çalışan için`);
 
     // Eğer müsaitlik kaydı yoksa bile, bir varsayılan durum oluşturalım
     if (!effectiveAvailableTime) {
@@ -483,3 +483,4 @@ export async function getShopCalendar(
     appointments
   };
 }
+

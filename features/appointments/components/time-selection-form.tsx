@@ -30,26 +30,22 @@ export function TimeSelectionForm() {
 
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
-    // localStorage'dan dükkan kimliğini al, yoksa demo için varsayılan değer kullan
     const shopIdFromStorage = localStorage.getItem('selectedShopId');
-    const serviceId = localStorage.getItem('selectedServiceId');
-    const selectedDate = localStorage.getItem('selectedDate') || new Date().toISOString().split('T')[0];
+    const serviceId = localStorage.getItem('selectedServiceId'); // Bu henüz kullanılmıyor gibi, ileride gerekebilir.
+    const selectedDateFromStorage = localStorage.getItem('selectedDate') || new Date().toISOString().split('T')[0];
     
-    setSelectedDate(selectedDate);
-    
-    // shp_001 şeklinde ID kullan - veritabanında oluşturduğumuz ID
-    const finalShopId = shopIdFromStorage || "shp_001";
+    setSelectedDate(selectedDateFromStorage);
+    const finalShopId = shopIdFromStorage || "shp_001"; // Varsayılan dükkan ID
     setShopId(finalShopId);
     
-    console.log(`Düzgün ID ile işlemlere başlanıyor: shopId=${finalShopId}, tarih=${selectedDate}`);
+    console.log(`İlk yükleme: shopId=${finalShopId}, tarih=${selectedDateFromStorage}`);
     
-    // Çalışanları getir
-    fetchStaffMembers(finalShopId);
-    
-    // Müsait zamanları getir
-    fetchAvailableTimes(selectedDate, finalShopId);
-    
-  }, []);
+    // Çalışanları getir. fetchStaffMembers içinde ilk uygun çalışan seçilip fetchAvailableTimes tetiklenecek.
+    if (finalShopId) {
+      fetchStaffMembers(finalShopId, selectedDateFromStorage);
+    }
+    // setAvailableTimes(generateDefaultTimeSlots()); // Bu satır kaldırıldı, API'den veri bekleniyor.
+  }, []); // Bağımlılıklar boş, sadece ilk yüklemede çalışır.
 
   // Update current time every second
   useEffect(() => {
@@ -68,222 +64,149 @@ export function TimeSelectionForm() {
   })
 
   // Kullanılabilir zamanları getirmek için
-  const fetchAvailableTimes = async (date: string, shopId: string) => {
+  const fetchAvailableTimes = async (date: string, shopId: string, employeeId?: string) => {
+    if (!employeeId) {
+      console.warn("fetchAvailableTimes: EmployeeId eksik. API çağrısı yapılmıyor.");
+      setAvailableTimes([]);
+      setError("Lütfen bir personel seçerek zamanları görüntüleyin.");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
+    setError(null);
     try {
-      // selectedStaff değerini employeeId olarak ekleyelim
-      const employeeId = selectedStaff || '';
+      console.log(`Müsaitlik kontrolü: date=${date}, shopId=${shopId}, employeeId=${employeeId}`);
       
-      console.log(`Müsaitlik kontrolü yapılıyor: date=${date}, shopId=${shopId}, employeeId=${employeeId || 'undefined'}`);
-      
-      // API çağrısı öncesi doğrulama yapalım
-      if (employeeId && employeeId.startsWith('default-')) {
-        console.log('Varsayılan personel ID kullanılıyor, API çağrısı yapmadan varsayılan zaman dilimlerini döndürüyoruz');
-        const defaultTimes = generateDefaultTimeSlots();
-        setAvailableTimes(defaultTimes);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-      
-      // 500ms bekleyip API'yi çağıralım
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Demo amaçlı 500ms bekleme
+      // await new Promise(resolve => setTimeout(resolve, 500));
       
       const response = await fetch(`/api/availability/check?date=${date}&shopId=${shopId}&employeeId=${employeeId}`);
       
-      // API yanıtını kontrol et
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Bilinmeyen sunucu hatası' }));
         throw new Error(errorData.error || 'Müsait zamanlar getirilemedi');
       }
       
       const data = await response.json();
       
-      // API'den dönen veriyi kontrol edelim
-      console.log(`API yanıtı:`, data);
-      
-      // API yanıt formatını kontrol edelim
       if (data.success && Array.isArray(data.availableTimes)) {
         setAvailableTimes(data.availableTimes);
-        setError(null);
-      } else if (data.error) {
-        console.error('API hatası:', data.error);
-        setError(`Müsait zamanlar yüklenirken bir hata oluştu: ${data.error}`);
-        // Hata olsa bile varsayılan değerleri gösterelim
-        setAvailableTimes(generateDefaultTimeSlots());
-      } else if (Array.isArray(data.availableTimes)) {
-        // Bazen success alanı olmayabilir, direkt availableTimes array'i de olabilir
+      } else if (Array.isArray(data.availableTimes)) { // success alanı olmasa da kabul et
         setAvailableTimes(data.availableTimes);
-        setError(null);
       } else {
-        console.warn('API beklenmeyen format döndü:', data);
-        // Beklenmeyen yanıt formatı - varsayılan zamanları kullanalım
-        setAvailableTimes(generateDefaultTimeSlots());
+        console.warn('API beklenmeyen format döndü veya availableTimes yok:', data);
+        setAvailableTimes([]); // Hatalı veri durumunda boş liste
+        setError(data.error || 'Müsait zaman formatı hatalı.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Zaman aralıkları getirme hatası:', error);
-      // Hata durumunda varsayılan zamanları kullan
-      setAvailableTimes(generateDefaultTimeSlots());
-      
-      // Kullanıcıya gösterilecek hata mesajı
-      setError('Müsait zamanlar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      setAvailableTimes([]); // Hata durumunda boş liste
+      setError(error.message || 'Müsait zamanlar yüklenirken bir hata oluştu.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Varsayılan zaman dilimlerini oluşturmak için yardımcı fonksiyon
-  const generateDefaultTimeSlots = () => {
-    const defaultTimes = [
-      "09:30", "10:15", "11:00", "11:45", "12:30", "13:15", 
-      "14:00", "14:45", "15:30", "16:15", "17:00", "17:45",
-      "18:30", "19:15", "20:00", "20:45"
-    ];
-    
-    return defaultTimes.map((time, index) => ({
-      id: (index + 1).toString(),
-      time,
-      available: true
-    }));
-  };
-
   // Çalışanları getirmek için
-  const fetchStaffMembers = async (shopId: string) => {
+  const fetchStaffMembers = async (shopId: string, dateForAvailability: string) => {
     setLoading(true);
+    setError(null);
+    setStaffMembers([]); // Önceki listeyi temizle
+    setSelectedStaff(undefined); // Seçili personeli temizle
+    setAvailableTimes([]); // Zamanları temizle
     try {
       console.log(`Çalışanlar getiriliyor, Shop ID: ${shopId}`);
-      
-      // Yeni API çağrısı - Veritabanından gerçek personel verilerini çek
       const endpoint = `/api/staff?shopId=${shopId}`;
-      console.log(`API çağrısı: ${endpoint}`);
-      
       const response = await fetch(endpoint);
       
-      // Yanıt durum kodunu kontrol et
-      console.log(`API yanıt durum kodu: ${response.status}`);
-      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API hata detayları:', errorData);
-        throw new Error(`Çalışan bilgileri alınamadı (${response.status}): ${errorData.error || 'Bilinmeyen hata'}`);
+        const errorData = await response.json().catch(() => ({ error: 'Bilinmeyen sunucu hatası' }));
+        throw new Error(`Çalışan bilgileri alınamadı (${response.status}): ${errorData.error || 'Sunucu hatası'}`);
       }
       
       const data = await response.json();
       
-      // Veri yapısını kontrol et
-      console.log(`API yanıtı alındı, eleman sayısı: ${Array.isArray(data) ? data.length : 'veri dizi değil'}`);
+      if (!Array.isArray(data)) {
+        console.warn('Personel verisi bir dizi değil.');
+        throw new Error('Personel verisi formatı hatalı.');
+      }
       
-      // Veri bir dizi değilse veya boşsa
-      if (!Array.isArray(data) || data.length === 0) {
-        console.log('Veri boş veya dizi değil, varsayılan personel kullanılacak');
-        
-        // Varsayılan personel oluştur
-        const defaultStaff = {
-          id: "default-staff",
-          name: "Berber Ustası",
-          role: "berber",
-          available: true,
-          experience: "10+ yıl"
-        };
-        
-        setStaffMembers([defaultStaff]);
-        setSelectedStaff("default-staff");
-        setError(null);
+      if (data.length === 0) {
+        console.log('Personel listesi boş.');
+        setError("Bu dükkanda kayıtlı personel bulunamadı.");
+        // setStaffMembers([]); // Zaten yukarıda temizlendi
+        // setSelectedStaff(undefined); // Zaten yukarıda temizlendi
+        // setAvailableTimes([]); // Zaten yukarıda temizlendi
         return;
       }
       
-      // API'dan veriler düzgün formatta gelmiyorsa, UI için uygun formata dönüştür
       const formattedData = data.map((employee: any) => ({
-        id: employee.id || "default-id-" + Math.random().toString(36).substring(7),
+        id: employee.id || `temp-id-${Math.random().toString(36).substring(7)}`,
         name: employee.name || 'İsimsiz Çalışan',
         role: employee.role?.toLowerCase() || "employee",
-        available: employee.available !== false, // varsayılan olarak true
+        available: employee.available !== false,
         experience: employee.experience || "Deneyimli"
       }));
       
-      if (formattedData.length === 0) {
-        // Çalışan yoksa varsayılan bir çalışan ekleyelim ki UI çalışmaya devam etsin
-        const defaultStaff = {
-          id: "default-staff",
-          name: "Varsayılan Çalışan",
-          role: "employee",
-          available: true,
-          experience: "Deneyimli"
-        };
-        setStaffMembers([defaultStaff]);
-        // Varsayılan çalışanı otomatik olarak seçelim
-        setSelectedStaff("default-staff");
+      setStaffMembers(formattedData);
+      
+      // localStorage'dan son seçilen personeli almayı dene
+      const lastSelectedStaffId = localStorage.getItem('selectedStaffId');
+      const stillAvailableStaff = lastSelectedStaffId ? formattedData.find(s => s.id === lastSelectedStaffId && s.available) : undefined;
+
+      if (stillAvailableStaff) {
+        setSelectedStaff(stillAvailableStaff.id);
+        console.log(`localStorage'dan son seçilen personel bulundu ve müsait: ${stillAvailableStaff.id}`);
+        fetchAvailableTimes(dateForAvailability, shopId, stillAvailableStaff.id);
       } else {
-        console.log(`Personel listesi alındı, toplam personel: ${formattedData.length}`);
-        setStaffMembers(formattedData);
-        // İlk çalışanı otomatik olarak seçelim
-        if (!selectedStaff && formattedData.length > 0) {
-          setSelectedStaff(formattedData[0].id);
-          console.log(`İlk personel otomatik seçildi: ${formattedData[0].id}`);
+        const firstAvailableStaff = formattedData.find(s => s.available);
+        if (firstAvailableStaff) {
+          setSelectedStaff(firstAvailableStaff.id);
+          console.log(`İlk müsait personel otomatik seçildi: ${firstAvailableStaff.id}`);
+          fetchAvailableTimes(dateForAvailability, shopId, firstAvailableStaff.id);
+        } else {
+          console.log('Müsait personel bulunamadı.');
+          setError("Şu anda müsait personel bulunmamaktadır.");
+          // setAvailableTimes([]); // Zaten temiz
         }
       }
-      setError(null);
-    } catch (error) {
+
+    } catch (error: any) {
       console.error("Çalışan bilgileri alınamadı:", error);
-      // Hata durumunda önceki fallback çözümü kullanıyoruz
-      try {
-        // Eski API çağrısı - eski yöntem ile personelleri almayı dene
-        const oldEndpoint = `/api/shops/${shopId}/employees`;
-        console.log(`Yedek API çağrısı deneniyor: ${oldEndpoint}`);
-        
-        const fallbackResponse = await fetch(oldEndpoint);
-        
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          
-          if (Array.isArray(fallbackData) && fallbackData.length > 0) {
-            console.log(`Yedek API'den ${fallbackData.length} personel alındı`);
-            
-            const fallbackFormatted = fallbackData.map((employee: any) => ({
-              id: employee.id || "fallback-id-" + Math.random().toString(36).substring(7),
-              name: `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || 'İsimsiz Çalışan',
-              role: employee.role?.toLowerCase() || "employee",
-              available: true,
-              experience: "Deneyimli"
-            }));
-            
-            setStaffMembers(fallbackFormatted);
-            if (!selectedStaff && fallbackFormatted.length > 0) {
-              setSelectedStaff(fallbackFormatted[0].id);
-            }
-            setError(null);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch (fallbackError) {
-        console.error("Yedek API çağrısı da başarısız:", fallbackError);
-      }
-      
-      // Hem yeni hem de yedek API başarısız olursa, varsayılan personeller kullan
-      const defaultStaff = [{
-        id: "default-staff-1",
-        name: "Berber Ustası",
-        role: "berber",
-        available: true,
-        experience: "10+ yıl"
-      },
-      {
-        id: "default-staff-2", 
-        name: "Çırak",
-        role: "employee",
-        available: true,
-        experience: "1 yıl"
-      }];
-      
-      setStaffMembers(defaultStaff);
-      setSelectedStaff(defaultStaff[0].id);
-      setError(null);
-      console.log("Varsayılan personel listesi kullanılıyor");
+      // setStaffMembers([]); // Zaten yukarıda temizlendi
+      // setSelectedStaff(undefined); // Zaten yukarıda temizlendi
+      // setAvailableTimes([]); // Zaten yukarıda temizlendi
+      setError(`Çalışan bilgileri yüklenirken bir hata oluştu: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
+
+  // selectedDate, selectedStaff veya shopId değiştiğinde zamanları yeniden getir
+  useEffect(() => {
+    // shopId'nin ilk yüklemede boş olabileceğini ve useEffect ile ayarlandığını unutma.
+    // Bu useEffect, selectedStaff veya selectedDate kullanıcı tarafından değiştirildiğinde çalışmalı.
+    // İlk yükleme mantığı ana useEffect'te ele alındı.
+    
+    // selectedStaff değiştiğinde (kullanıcı seçimi veya otomatik ilk atama sonrası)
+    // ve selectedDate değiştiğinde (kullanıcı takvimden seçtiğinde)
+    // ve shopId geçerli olduğunda çalışır.
+    if (shopId && selectedStaff && selectedDate) {
+        console.log(`Değişiklik algılandı. Zamanlar yeniden getiriliyor: date=${selectedDate}, shopId=${shopId}, staffId=${selectedStaff}`);
+        fetchAvailableTimes(selectedDate, shopId, selectedStaff);
+    } else if (shopId && !selectedStaff && staffMembers.length > 0) {
+        // Personel listesi var ama henüz seçilmemişse (bu durum ilk yüklemede ele alınmış olmalı)
+        // Belki bir uyarı gösterilebilir veya ilk personel tekrar seçtirilebilir.
+        // Şimdilik, fetchAvailableTimes içindeki kontrol bunu hallediyor (hata mesajı gösteriyor).
+        console.log("Personel seçimi bekleniyor.");
+        setAvailableTimes([]); // Personel seçimi yoksa zamanları temizle
+        setError("Lütfen bir personel seçin.");
+    }
+    // Bağımlılıklara staffMembers eklemek, staffMembers değiştiğinde de tetiklenmesine neden olur.
+    // Bu, fetchStaffMembers'ın sonunda fetchAvailableTimes çağrıldığı için gereksiz bir döngüye neden olabilir.
+    // Sadece kullanıcı etkileşimleri (tarih veya personel seçimi) veya shopId değişimi (bu pek olası değil) ile tetiklenmeli.
+  }, [selectedDate, selectedStaff, shopId]);
 
   // Function to handle continue button click
   const handleContinue = () => {
@@ -298,28 +221,20 @@ export function TimeSelectionForm() {
 
   // Function to handle staff selection
   const handleStaffSelection = (staffId: string) => {
-    console.log(`Personel seçildi, ID: ${staffId}`);
-    
-    setSelectedStaff(staffId);
-    // Automatically open the time selection accordion when staff is selected
-    setAccordionValue("time");
-    
-    try {
-      // Personel değiştiğinde mevcut tarih için müsaitlik durumunu güncelle
-      if (selectedDate && shopId) {
-        // API'de hata almamak için küçük bir gecikme ekleyelim
-        setTimeout(() => {
-          fetchAvailableTimes(selectedDate, shopId);
-        }, 500);
-      }
-    } catch (error) {
-      console.error("Personel seçiminde hata:", error);
-      
-      // Hata durumunda varsayılan zamanları kullanalım
-      const defaultTimes = generateDefaultTimeSlots();
-      setAvailableTimes(defaultTimes);
+    if (!staffId) {
+      console.warn("handleStaffSelection: staffId tanımsız geldi.");
+      setSelectedStaff(undefined);
+      setAvailableTimes([]);
+      setError("Lütfen bir personel seçin.");
+      localStorage.removeItem('selectedStaffId'); // Seçimi kaldırınca localStorage'dan da sil
+      return;
     }
-  }
+    console.log(`Personel seçildi: ${staffId}`);
+    setSelectedStaff(staffId);
+    localStorage.setItem('selectedStaffId', staffId); // Seçimi localStorage'a kaydet
+    setAccordionValue("time"); 
+    // fetchAvailableTimes çağrısı artık yukarıdaki useEffect tarafından selectedStaff değişince yapılacak.
+  };
 
   // Yükleniyor durumu
   if (loading && staffMembers.length === 0) {

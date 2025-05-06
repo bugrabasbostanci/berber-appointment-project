@@ -9,9 +9,26 @@ export async function createAppointment(data: {
   time: Date;
   endTime: Date;
   notes?: string;
+  employeeId?: string; // Personel/berber ID'si
 }): Promise<Appointment> {
+  const { employeeId, ...appointmentData } = data;
+  
+  // Notes alanına employeeId bilgisini ekleyelim
+  let notes = appointmentData.notes || '';
+  
+  // Eğer employeeId varsa, notes alanına "EmployeeId:[id]" şeklinde ekleyelim
+  if (employeeId) {
+    if (notes) {
+      notes += '\n';
+    }
+    notes += `EmployeeId:${employeeId}`;
+  }
+  
   return prisma.appointment.create({
-    data
+    data: {
+      ...appointmentData,
+      notes
+    }
   });
 }
 
@@ -179,35 +196,68 @@ export async function getEmployeeAppointments(
 // Dükkanın belirli bir tarihteki randevularını getirme
 export async function getShopAppointmentsByDate(
   shopId: string,
-  date: Date,
+  date: Date, // Frontend'den gelen tarih (new Date() ile oluşturulmuş)
   userId?: string
-): Promise<Appointment[]> {
-  const where: Prisma.AppointmentWhereInput = {
+): Promise<Appointment[]> { 
+  
+  // Günün başlangıcını al (frontend'den gelen tarihe göre)
+  const startDate = new Date(date);
+  startDate.setHours(0, 0, 0, 0);
+
+  // Ertesi günün başlangıcını al
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 1);
+  
+  console.log(`[SERVICE DEBUG] getShopAppointmentsByDate called for shopId: ${shopId}, date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+  const whereCondition: Prisma.AppointmentWhereInput = {
     shopId,
-    date
+    date: {
+      gte: startDate, // Belirtilen günün başlangıcından büyük veya eşit
+      lt: endDate,    // Ertesi günün başlangıcından küçük
+    },
   };
 
-  if (userId) {
-    where.userId = userId;
-  }
+  // Takvim sayfası müşteri ID'sine göre filtreleme yapmıyor, o yüzden bu kısım şimdilik gereksiz.
+  // if (userId) {
+  //   whereCondition.userId = userId;
+  // }
 
-  return prisma.appointment.findMany({
-    where,
-    include: {
-      user: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          profile: true
-        }
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: whereCondition,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profile: true, 
+          },
+        },
+        shop: true, 
+        review: true, 
       },
-      shop: true,
-      review: true
-    },
-    orderBy: { time: 'asc' }
-  });
+      orderBy: { time: 'asc' },
+    });
+
+    console.log(`[SERVICE DEBUG] Prisma findMany returned ${appointments.length} appointments for shopId ${shopId} covering range starting ${startDate.toISOString()}.`);
+    if (appointments.length > 0) {
+      console.log('[SERVICE DEBUG] First appointment sample (id, date, time, notes):',
+        {
+          id: appointments[0].id,
+          date: appointments[0].date,
+          time: appointments[0].time,
+          notes: appointments[0].notes
+        });
+    }
+    return appointments;
+
+  } catch (error) {
+    console.error(`[SERVICE ERROR] Error in getShopAppointmentsByDate for shopId ${shopId}, date range starting ${startDate.toISOString()}:`, error);
+    throw error; 
+  }
 }
 
 // Belirli bir zaman diliminde çakışan randevuları kontrol etme

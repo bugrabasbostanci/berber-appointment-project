@@ -45,7 +45,15 @@ export default function BarberDashboardPage() {
 
   // Format today's date
   const today = new Date()
-  const formattedDate = formatFullDate(today.toISOString())
+  const formattedDate = today.toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    weekday: "long",
+  })
+  
+  // Bugünün tarihini saat bilgisi olmadan al (karşılaştırma için)
+  const todayWithoutTime = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   
   // Günün formatlanmış tarihi (yyyy-mm-dd)
   const todayFormatted = today.toISOString().split('T')[0]
@@ -70,13 +78,21 @@ export default function BarberDashboardPage() {
         
         const shopId = shopData.shops[0].id
         
-        // Bugünkü randevuları getirme
-        const appointmentsResponse = await fetch(`/api/appointments?shopId=${shopId}&date=${todayFormatted}`)
+        // Bugünkü randevuları getirme (her istek için özellikle bugünün tarihini belirt)
+        const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD formatı
+        console.log(`Dashboard - Bugün için randevular alınıyor: ${todayStr}`);
+        
+        const appointmentsResponse = await fetch(`/api/appointments?shopId=${shopId}&date=${todayStr}`, {
+          cache: 'no-store' // Her zaman taze veri
+        })
         if (!appointmentsResponse.ok) {
           throw new Error('Randevu verileri getirilemedi')
         }
         
         const appointmentsData: ApiAppointment[] = await appointmentsResponse.json()
+        
+        // Sonuçları kontrol etmek için log
+        console.log(`Bugün için ${appointmentsData.length} randevu alındı`);
         
         // Müşteri sayısını getirme - ROLE=CUSTOMER olan kullanıcıların sayısını getirme
         const customersResponse = await fetch(`/api/users?role=CUSTOMER&count=true`)
@@ -87,22 +103,35 @@ export default function BarberDashboardPage() {
         const customersData = await customersResponse.json()
         
         // API verilerini UI için uygun formata dönüştürme
-        const formattedAppointments = appointmentsData.map((apt: ApiAppointment) => {
-          // formatTime fonksiyonunu kullanarak saati formatla
-          const formattedTime = formatTime(new Date(apt.time).toISOString())
-          
-          return {
-            id: apt.id,
-            time: formattedTime,
-            customer: {
-              name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim(),
-              avatar: apt.user.profile?.profileImage || "/placeholder.svg",
-              initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim()),
-              phone: apt.user.phone || "-",
-            },
-            service: apt.service?.name || "Belirtilmemiş",
-          }
-        })
+        const formattedAppointments = appointmentsData
+          .filter((apt: ApiAppointment) => {
+            // Randevunun tarihini kontrol et - sadece bugünkü randevuları göster
+            const appointmentDate = new Date(apt.time);
+            const appointmentDay = new Date(
+              appointmentDate.getFullYear(),
+              appointmentDate.getMonth(),
+              appointmentDate.getDate()
+            );
+            
+            // Doğru tarih kontrolü yap - bugün değilse randevuyu gösterme 
+            return appointmentDay.getTime() === todayWithoutTime.getTime();
+          })
+          .map((apt: ApiAppointment) => {
+            // formatTime fonksiyonunu kullanarak saati formatla
+            const formattedTime = formatTime(new Date(apt.time).toISOString())
+            
+            return {
+              id: apt.id,
+              time: formattedTime,
+              customer: {
+                name: `${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim(),
+                avatar: apt.user.profile?.profileImage || "/placeholder.svg",
+                initials: getInitials(`${apt.user.firstName || ''} ${apt.user.lastName || ''}`.trim()),
+                phone: apt.user.phone || "-",
+              },
+              service: apt.service?.name || "Belirtilmemiş",
+            }
+          });
         
         setTodaysAppointments(formattedAppointments)
         setCustomerCount(customersData.count || 0)

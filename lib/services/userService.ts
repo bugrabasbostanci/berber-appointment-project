@@ -223,47 +223,19 @@ export async function getUserAppointments(userId: string) {
 }
 
 // Berber ve çalışanları getir (personel listesi)
-export async function getStaffMembers(shopId?: string): Promise<User[]> {
+export async function getStaffMembers(): Promise<User[]> {
   try {
-    const where: Prisma.UserWhereInput = {
+    const whereConditions: Prisma.UserWhereInput = {
       OR: [
         { role: Role.BARBER },
         { role: Role.EMPLOYEE }
-      ]
+      ],
     };
     
-    // Eğer shopId verilmişse, o dükkana bağlı personeli getir
-    if (shopId) {
-      where.OR = [
-        { 
-          role: Role.BARBER,
-          ownedShops: {
-            some: {
-              id: shopId
-            }
-          }
-        },
-        { 
-          role: Role.EMPLOYEE,
-          ownedShops: {
-            some: {
-              id: shopId
-            }
-          }
-        },
-        // Ayrıca dükkanın sahibi de personel olarak sayılır
-        {
-          ownedShops: {
-            some: {
-              id: shopId
-            }
-          }
-        }
-      ];
-    }
-    
-    const staffMembers = await prisma.user.findMany({
-      where,
+    console.log(`[getStaffMembers] finalWhereConditions:`, JSON.stringify(whereConditions, null, 2));
+
+    const staffMembersResult = await prisma.user.findMany({
+      where: whereConditions,
       select: {
         id: true,
         firstName: true,
@@ -271,7 +243,7 @@ export async function getStaffMembers(shopId?: string): Promise<User[]> {
         email: true,
         phone: true,
         role: true,
-        createdAt: true,
+        createdAt: true, 
         profile: {
           select: {
             bio: true
@@ -281,60 +253,14 @@ export async function getStaffMembers(shopId?: string): Promise<User[]> {
       orderBy: { firstName: 'asc' }
     });
     
-    // Eğer hiç personel yoksa, varsayılan değerlerle en az iki personel döndür
-    if (staffMembers.length === 0) {
-      console.log('Veritabanında personel bulunamadı, varsayılan personel verisi döndürülüyor');
-      
-      // Rol enum türünü al
-      return [
-        {
-          id: 'default-barber-1',
-          firstName: 'Ahmet',
-          lastName: 'Usta',
-          email: 'berber@example.com',
-          phone: '+905551112233', 
-          role: Role.BARBER,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          profile: {
-            bio: '10 yıllık tecrübeli berber'
-          }
-        } as unknown as User,
-        {
-          id: 'default-employee-1',
-          firstName: 'Mehmet',
-          lastName: 'Çırak',
-          email: 'asistan@example.com',
-          phone: '+905551112234',
-          role: Role.EMPLOYEE,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          profile: {
-            bio: '2 yıllık deneyimli asistan'
-          }
-        } as unknown as User
-      ];
-    }
+    console.log(`[getStaffMembers] Found ${staffMembersResult.length} staff members.`);
+
+    // Mock data döndürme mantığı şimdilik kaldırıldı, gerçek veriye odaklanalım.
+    // if (staffMembersResult.length === 0 && !shopIdInput) { ... }
     
-    return staffMembers as unknown as User[];
+    return staffMembersResult as unknown as User[];
   } catch (error) {
     logPrismaError('Personel listesi alma hatası', error);
-    
-    // Hata durumunda varsayılan personel verisi döndür
-    return [
-      {
-        id: 'default-barber-error',
-        firstName: 'Berber',
-        lastName: 'Usta',
-        email: 'berber@example.com',
-        phone: '+905551112233',
-        role: Role.BARBER,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        profile: {
-          bio: 'Varsayılan berber (hata durumu)'
-        }
-      } as unknown as User
-    ];
+    return []; // Hata durumunda boş liste döndür
   }
 }

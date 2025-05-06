@@ -38,8 +38,7 @@ export async function getAppointmentById(id: string): Promise<Appointment | null
     where: { id },
     include: {
       shop: true,
-      user: true,
-      review: true
+      user: true
     }
   });
 }
@@ -98,8 +97,7 @@ export async function getCustomerAppointments(
           firstName: true,
           lastName: true
         }
-      },
-      review: true
+      }
     },
     orderBy: past
       ? [{ date: 'desc' }, { time: 'desc' }]
@@ -183,8 +181,7 @@ export async function getEmployeeAppointments(
           email: true,
           phone: true
         }
-      },
-      review: true
+      }
     },
     orderBy: [
       { date: 'asc' },
@@ -236,8 +233,7 @@ export async function getShopAppointmentsByDate(
             profile: true, 
           },
         },
-        shop: true, 
-        review: true, 
+        shop: true 
       },
       orderBy: { time: 'asc' },
     });
@@ -387,18 +383,17 @@ export async function addReviewToAppointment(
 ): Promise<Appointment> {
   // İlk önce randevuyu bul
   const appointment = await prisma.appointment.findUnique({
-    where: { id: appointmentId },
-    include: { review: true }
+    where: { id: appointmentId }
   });
 
   if (!appointment) {
     throw new Error('Randevu bulunamadı');
   }
 
-  // Eğer zaten bir değerlendirme varsa güncelle
-  if (appointment.review) {
+  // Eğer zaten bir değerlendirme ID'si varsa güncelle
+  if (appointment.reviewId) {
     await prisma.review.update({
-      where: { id: appointment.review.id },
+      where: { id: appointment.reviewId },
       data: {
         rating: data.rating,
         comment: data.comment
@@ -424,15 +419,20 @@ export async function addReviewToAppointment(
     });
   }
 
-  // Güncellenmiş randevuyu döndür
-  return prisma.appointment.findUnique({
+  // Güncellenmiş randevuyu döndür (review olmadan)
+  const updatedAppointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     include: {
-      review: true,
       shop: true,
       user: true
     }
-  }) as Promise<Appointment>;
+  });
+
+  if (!updatedAppointment) {
+    // Bu durumun olmaması gerekir, çünkü yukarıda varlığını kontrol ettik ve güncelledik.
+    throw new Error('Randevu güncellendikten sonra bulunamadı.');
+  }
+  return updatedAppointment;
 }
 
 // Günlük, haftalık veya aylık randevu raporlarını getirme

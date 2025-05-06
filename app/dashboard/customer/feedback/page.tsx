@@ -16,14 +16,13 @@ export default function FeedbackPage() {
   const [feedback, setFeedback] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [appointmentId, setAppointmentId] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     
     try {
-      const response = await fetch(`/api/appointments/${appointmentId}/reviews`, {
+      const response = await fetch(`/api/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,21 +56,25 @@ export default function FeedbackPage() {
               </div>
               <CardTitle>Geri Bildiriminiz İçin Teşekkürler!</CardTitle>
               <CardDescription className="max-w-md">
-                Değerli görüşleriniz hizmetlerimizi geliştirmemize yardımcı olacak.
+                Projemizi geliştirmemize yardımcı olacak değerli görüşleriniz için minnettarız.
               </CardDescription>
-              <Button onClick={() => setSubmitted(false)}>Yeni Geri Bildirim Gönder</Button>
+              <Button onClick={() => {
+                setSubmitted(false)
+                setRating("5")
+                setFeedback("")
+              }}>Yeni Geri Bildirim Gönder</Button>
             </div>
           </CardContent>
         ) : (
           <>
             <CardHeader>
-              <CardTitle>Geri Bildirim Formu</CardTitle>
-              <CardDescription>Hizmetlerimizi değerlendirin ve görüşlerinizi bizimle paylaşın.</CardDescription>
+              <CardTitle>Proje Geri Bildirim Formu</CardTitle>
+              <CardDescription>Projemiz hakkındaki düşüncelerinizi ve değerlendirmelerinizi bizimle paylaşın.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Deneyiminizi nasıl değerlendirirsiniz?</Label>
+                  <Label>Projemizi genel olarak nasıl değerlendirirsiniz?</Label>
                   <RadioGroup value={rating} onValueChange={setRating} className="flex space-x-1" defaultValue="5">
                     {[1, 2, 3, 4, 5].map((value) => (
                       <div key={value} className="flex flex-col items-center space-y-1">
@@ -102,7 +105,7 @@ export default function FeedbackPage() {
                   <Label htmlFor="feedback">Görüşleriniz</Label>
                   <Textarea
                     id="feedback"
-                    placeholder="Deneyiminiz hakkında görüşlerinizi yazabilirsiniz..."
+                    placeholder="Projemiz hakkındaki genel görüşlerinizi, beğendiğiniz veya geliştirilmesini istediğiniz noktaları yazabilirsiniz..."
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
                     className="min-h-32"
@@ -117,10 +120,13 @@ export default function FeedbackPage() {
                   setRating("5")
                   setFeedback("")
                 }}
+                disabled={isLoading}
               >
                 Temizle
               </Button>
-              <Button onClick={handleSubmit}>Gönder</Button>
+              <Button onClick={handleSubmit} disabled={isLoading || !feedback.trim()}>
+                {isLoading ? "Gönderiliyor..." : "Gönder"}
+              </Button>
             </CardFooter>
           </>
         )}

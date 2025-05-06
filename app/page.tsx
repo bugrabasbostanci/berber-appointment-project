@@ -265,7 +265,7 @@ export default function HomePage() {
                   <div className="grid grid-cols-2 gap-2 text-sm sm:text-base">
                     <div>
                       <p className="font-medium">Pazartesi - Cumartesi</p>
-                      <p className="text-muted-foreground">09:30 - 20:00</p>
+                      <p className="text-muted-foreground">09:30 - 20:45</p>
                     </div>
                     <div>
                       <p className="font-medium">Pazar</p>

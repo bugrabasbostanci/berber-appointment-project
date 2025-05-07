@@ -6,7 +6,36 @@ import { Scissors, BeakerIcon as Beard, User, Star, MapPin, Phone, Mail, Baby } 
 import { Navbar } from "@/features/layout/components/navbar"
 import { Footer } from "@/features/layout/components/footer"
 
-export default function HomePage() {
+interface Review {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string; // Tarih formatına göre string veya Date olabilir
+  user: { // User bilgisi eklendi
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null; // Kullanıcı bilgisi null olabilir (eski yorumlar veya bir hata durumunda)
+}
+
+async function getLatestReviews(): Promise<Review[]> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/feedback`, { 
+      next: { revalidate: 60 } // Her 60 saniyede bir yeniden doğrula (veya isteğe bağlı olarak daha uzun)
+    });
+    if (!res.ok) {
+      console.error("Failed to fetch reviews:", res.status, await res.text());
+      return [];
+    }
+    return res.json();
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const reviews = await getLatestReviews();
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
@@ -167,73 +196,46 @@ export default function HomePage() {
               <h2 className="text-2xl font-bold tracking-tighter sm:text-3xl md:text-4xl">Müşteri Yorumları</h2>
               <p className="mx-auto max-w-[700px] text-muted-foreground">Müşterilerimizin deneyimlerini dinleyin.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                      <span className="font-semibold text-sm">MA</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Mehmet Aydın</p>
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="h-3 w-3 fill-primary text-primary" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    "Randevu almak çok kolay ve hızlı. Artık saatlerce sıra beklemiyorum. Kesinlikle tavsiye ederim."
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                      <span className="font-semibold text-sm">AK</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Ali Kaya</p>
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-3 w-3 ${i < 4 ? "fill-primary text-primary" : "text-muted-foreground"}`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    "Uygulama çok kullanışlı. İstediğim saatte randevu alabiliyorum ve hatırlatma bildirimleri çok işime
-                    yarıyor."
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                      <span className="font-semibold text-sm">CY</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Can Yılmaz</p>
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="h-3 w-3 fill-primary text-primary" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    "Berberim artık her zaman dolu olmasına rağmen, uygulama sayesinde kolayca yer bulabiliyorum. Harika
-                    bir sistem!"
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            {reviews && reviews.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {reviews.map((review) => {
+                  const userName = review.user && (review.user.firstName || review.user.lastName) 
+                                    ? `${review.user.firstName || ''} ${review.user.lastName || ''}`.trim()
+                                    : "Anonim Kullanıcı";
+                  const userInitials = review.user && (review.user.firstName || review.user.lastName)
+                                    ? `${review.user.firstName ? review.user.firstName[0] : ''}${review.user.lastName ? review.user.lastName[0] : ''}`.toUpperCase()
+                                    : "AK";
+
+                  return (
+                    <Card key={review.id}>
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                            <span className="font-semibold text-sm">{userInitials}</span>
+                          </div>
+                          <div>
+                            <p className="font-semibold">{userName}</p>
+                            <div className="flex items-center">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-3 w-3 ${i < review.rating ? "fill-primary text-primary" : "text-muted-foreground"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          "{review.comment || "Yorum yok."}"
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground">Henüz müşteri yorumu bulunmamaktadır.</p>
+            )}
           </div>
         </section>
 

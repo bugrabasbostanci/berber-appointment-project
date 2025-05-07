@@ -1,11 +1,34 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 // Bu Prisma client örneğini projenizdeki Prisma client konfigürasyonunuza göre güncellemeniz gerekebilir.
 // import { prisma } from '@/lib/prisma'; // Örnek Prisma client importu
 
 export async function POST(request: Request) {
   try {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
+    }
+
+    const userId = user.id;
+
     const body = await request.json();
     const { rating, comment } = body;
 
@@ -26,8 +49,8 @@ export async function POST(request: Request) {
       data: {
         rating: rating,
         comment: comment,
+        userId: userId,
         // shopId: null, // Genel proje geri bildirimi için shopId null olacak veya belirtilmeyecek
-        // userId: ... // Eğer kullanıcı kimliğini de kaydetmek isterseniz ve Review modelinde userId varsa
       },
     });
 
@@ -43,5 +66,28 @@ export async function POST(request: Request) {
     }
     // Prisma veya diğer veritabanı hatalarını da yakalamak ve daha spesifik mesajlar vermek iyi bir pratiktir.
     return NextResponse.json({ error: 'Geri bildirim işlenirken bir sunucu hatası oluştu.' }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    const reviews = await prisma.review.findMany({
+      take: 3,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+          }
+        }
+      }
+    });
+    return NextResponse.json(reviews, { status: 200 });
+  } catch (error) {
+    console.error('Yorumlar getirilirken hata:', error);
+    return NextResponse.json({ error: 'Yorumlar getirilirken bir sunucu hatası oluştu.' }, { status: 500 });
   }
 } 

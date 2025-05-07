@@ -29,6 +29,7 @@ model User {
   profile      Profile?
   ownedShops   Shop[]
   appointments Appointment[]
+  reviews      Review[] @relation("UserReviews")
 
   @@map("users")
 }
@@ -123,6 +124,7 @@ model Service {
 model Review {
   id        String   @id @default(uuid())
   shopId    String?  @map("shop_id")
+  userId    String?  @map("user_id")
   rating    Int
   comment   String?
   createdAt DateTime @default(now()) @map("created_at")
@@ -130,6 +132,7 @@ model Review {
 
   // Relations
   shop Shop? @relation(fields: [shopId], references: [id])
+  user User? @relation("UserReviews", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reviews")
 }

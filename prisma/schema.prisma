@@ -22,14 +22,16 @@ model User {
   role      Role     @default(CUSTOMER)
   firstName String?  @map("first_name")
   lastName  String?  @map("last_name")
+  provider  String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  profile      Profile?
-  ownedShops   Shop[]
-  appointments Appointment[]
-  reviews      Review[] @relation("UserReviews")
+  profile              Profile?
+  ownedShops           Shop[]
+  customerAppointments Appointment[] @relation("AppointmentCustomer")
+  employeeAppointments Appointment[] @relation("AppointmentEmployee")
+  reviews              Review[]      @relation("UserReviews")
 
   @@map("users")
 }
@@ -70,20 +72,23 @@ model Shop {
 }
 
 model Appointment {
-  id        String   @id @default(uuid())
-  shopId    String   @map("shop_id")
-  userId    String   @map("user_id")
-  date      DateTime
-  time      DateTime
-  endTime   DateTime @map("end_time")
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  shopId     String   @map("shop_id")
+  userId     String   @map("user_id")
+  date       DateTime
+  time       DateTime
+  endTime    DateTime @map("end_time")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  shop     Shop    @relation(fields: [shopId], references: [id])
-  user     User    @relation(fields: [userId], references: [id])
-  reviewId String? @map("review_id")
+  employeeId String?  @map("employee_id")
+  employee   User?    @relation("AppointmentEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+
+  shop       Shop     @relation(fields: [shopId], references: [id])
+  user       User     @relation("AppointmentCustomer", fields: [userId], references: [id])
+  reviewId   String?  @unique @map("review_id")
+  review     Review?  @relation(fields: [reviewId], references: [id], onDelete: SetNull)
 
   @@map("appointments")
 }
@@ -133,6 +138,7 @@ model Review {
   // Relations
   shop Shop? @relation(fields: [shopId], references: [id])
   user User? @relation("UserReviews", fields: [userId], references: [id], onDelete: Cascade)
+  appointment Appointment?
 
   @@map("reviews")
 }

@@ -2,7 +2,7 @@ import { User, Role, Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
 // Hata detaylarını yazdıran yardımcı fonksiyon
-function logPrismaError(prefix: string, error: any) {
+function logPrismaError(prefix: string, error: unknown) {
   console.error(`${prefix}:`, error);
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     console.error('Prisma hata kodu:', error.code);
@@ -12,7 +12,7 @@ function logPrismaError(prefix: string, error: any) {
     console.error('Hata mesajı:', error.message);
     console.error('Hata yığını:', error.stack);
   } else {
-    console.error('Bilinmeyen hata tipi:', typeof error);
+    console.error('Bilinmeyen hata tipi:', typeof error, error);
   }
 }
 
@@ -24,57 +24,116 @@ export async function createUser(userData: {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  // Eğer yeni alanlar eklediyseniz burada da tanımlamalısınız
+  provider?: string; // örn: "google", "email" (veya e-posta/şifre için undefined/null)
 }): Promise<User> {
   console.log('createUser isteği:', JSON.stringify(userData));
-  
+
   try {
-    // Önce kullanıcının zaten var olup olmadığını kontrol et
-    const existingUser = await prisma.user.findUnique({
-      where: { 
-        id: userData.id 
-      }
+    // 1. Supabase Auth User ID'si ile mevcut bir kullanıcı var mı kontrol et.
+    let existingUserById = await prisma.user.findUnique({
+      where: { id: userData.id },
     });
-    
-    if (existingUser) {
-      console.log('Kullanıcı zaten var, varolan kullanıcı döndürülüyor:', existingUser.id);
-      return existingUser;
+
+    if (existingUserById) {
+      // Veritabanındaki provider'ı al, eğer null/undefined ise 'email' olarak kabul et.
+      const currentDbProvider = existingUserById.provider || 'email';
+      // Gelen istekteki provider'ı al, eğer null/undefined ise 'email' olarak kabul et.
+      const incomingProvider = userData.provider || 'email';
+
+      // Eğer veritabanındaki provider ile gelen provider farklıysa, bu bir çakışmadır.
+      if (currentDbProvider !== incomingProvider) {
+        console.warn(
+          `Provider Çakışması (Aynı Supabase ID): Kullanıcı ${userData.id} (${userData.email}) veritabanında '${currentDbProvider}' provider ile kayıtlı, ancak mevcut kimlik doğrulama denemesi '${incomingProvider}' ile yapılıyor.`
+        );
+        const displayCurrent = currentDbProvider === 'email' ? 'e-posta/şifre' : currentDbProvider;
+        const displayIncoming = incomingProvider === 'email' ? 'e-posta/şifre' : incomingProvider;
+        throw new Error(
+          `Bu hesap (${userData.email}) zaten ${displayCurrent} yöntemiyle kayıtlıdır. ${displayIncoming} yöntemiyle devam edemezsiniz.`
+        );
+      }
+
+      // Provider'lar aynı (veya her ikisi de 'email' olarak değerlendiriliyor).
+      // Mevcut kullanıcıyı döndür.
+      console.log(
+        'Kullanıcı Supabase ID ile bulundu ve provider uyumlu. Mevcut kullanıcı döndürülüyor:',
+        existingUserById.id
+      );
+      return existingUserById;
     }
-    
-    // E-posta ile kontrol
+
+    // 2. E-posta adresi ile mevcut bir kullanıcı var mı kontrol et.
+    // Bu nokta, farklı Supabase Auth User ID'leri (farklı provider'lar) ama aynı e-posta durumu için kritiktir.
     const existingUserByEmail = await prisma.user.findUnique({
-      where: { 
-        email: userData.email 
-      }
+      where: { email: userData.email },
     });
-    
+
     if (existingUserByEmail) {
-      console.log('Bu e-posta ile kullanıcı zaten var:', existingUserByEmail.id);
-      throw new Error('Bu e-posta adresi ile kayıtlı bir kullanıcı zaten var');
+      // E-posta ile bir kullanıcı bulundu. Supabase ID'leri farklı olduğu için buradayız.
+      // Bu, aynı e-postanın farklı kimlik doğrulama yöntemleriyle kullanılmaya çalışıldığı anlamına gelir.
+
+      // Gelen provider bilgisini belirle, eğer yoksa 'email' (e-posta/şifre) varsay.
+      const newProvider = userData.provider || 'email';
+      // Veritabanındaki kullanıcının provider bilgisini belirle, eğer yoksa 'email' varsay.
+      const currentProviderInDb = existingUserByEmail.provider || 'email';
+
+      // Eğer provider'lar farklıysa, bu bir çakışmadır.
+      if (currentProviderInDb !== newProvider) {
+        console.log(
+          `Çakışma: E-posta (${userData.email}) zaten ${currentProviderInDb} yöntemiyle kayıtlı. Yeni deneme: ${newProvider}. Supabase ID'leri farklı (mevcut Prisma User ID: ${existingUserByEmail.id}, yeni Supabase User ID: ${userData.id})`
+        );
+        const providerNameToDisplay =
+          currentProviderInDb === 'email'
+            ? 'e-posta/şifre'
+            : currentProviderInDb;
+        throw new Error(
+          `Bu e-posta adresi (${userData.email}) zaten ${providerNameToDisplay} yöntemiyle kayıtlı. Lütfen o yöntemle giriş yapın veya farklı bir e-posta adresi kullanın.`
+        );
+      } else {
+        // Provider'lar aynı olmasına rağmen Supabase ID'leri farklı.
+        // Bu çok sıra dışı bir durumdur, çünkü Supabase normalde aynı e-posta ve aynı provider için
+        // tek bir Auth User (ve dolayısıyla tek bir ID) oluşturur.
+        // Bu, manuel veri tutarsızlığı veya beklenmedik bir sistem davranışı olabilir.
+        console.error(
+          `Kritik Tutarsızlık: E-posta (${userData.email}) ve provider (${newProvider}) aynı olmasına rağmen farklı Supabase ID'leri. Mevcut Prisma User ID ${existingUserByEmail.id}, Yeni Supabase User ID ${userData.id}. Bu durumun incelenmesi gerekiyor.`
+        );
+        // Bu durumda, çakışmayı önlemek için hata fırlatmak en güvenli yoldur.
+        throw new Error(
+          `Beklenmedik bir hesap çakışması durumu oluştu. Lütfen sistem yöneticisi ile iletişime geçin. (E-posta: ${userData.email})`
+        );
+      }
     }
-    
-    // Yeni kullanıcı oluştur
-    console.log('Yeni kullanıcı oluşturuluyor...');
+
+    // 3. Yeni kullanıcı oluştur.
+    // Ne Supabase ID'si ile ne de e-posta ile (çakışma olmadan) eşleşen bir kullanıcı bulunamadı.
+    console.log(
+      'Yeni kullanıcı oluşturuluyor (Supabase ID ve e-posta ile eşleşme/çakışma yok)...'
+    );
     const newUser = await prisma.user.create({
       data: {
-        id: userData.id,
+        id: userData.id, // Yeni Supabase Auth User ID'si
         email: userData.email,
         role: userData.role,
         firstName: userData.firstName,
         lastName: userData.lastName,
         phone: userData.phone,
-        // Aynı zamanda profile de oluştur (varsa ilişkili tablolar)
+        provider: userData.provider || 'email', // Provider'ı kaydet, yoksa 'email' varsay.
         profile: {
-          create: {} // Boş bir profil oluştur
-        }
-      }
+          create: {}, // Boş bir profil oluştur
+        },
+      },
     });
-    
+
     console.log('Yeni kullanıcı başarıyla oluşturuldu:', newUser.id);
     return newUser;
   } catch (error) {
     logPrismaError('Kullanıcı oluşturma hatası', error);
-    throw error; // Hatayı yukarı ilet
+    // Hatanın zaten Error nesnesi olup olmadığını kontrol et
+    if (error instanceof Error) {
+      throw error; // Zaten bir Error nesnesi ise doğrudan fırlat
+    } else {
+      // Değilse, yeni bir Error nesnesi oluşturarak fırlat
+      throw new Error(String(error));
+    }
   }
 }
 
@@ -86,7 +145,10 @@ export async function getUserById(id: string): Promise<User | null> {
     });
   } catch (error) {
     logPrismaError(`ID ile kullanıcı arama hatası (${id})`, error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 
@@ -98,7 +160,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     });
   } catch (error) {
     logPrismaError(`E-posta ile kullanıcı arama hatası (${email})`, error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 
@@ -114,7 +179,10 @@ export async function updateUser(
     });
   } catch (error) {
     logPrismaError(`Kullanıcı güncelleme hatası (${id})`, error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 
@@ -126,7 +194,10 @@ export async function deleteUser(id: string): Promise<User> {
     });
   } catch (error) {
     logPrismaError(`Kullanıcı silme hatası (${id})`, error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 
@@ -161,7 +232,10 @@ export async function getUsers(params: {
     });
   } catch (error) {
     logPrismaError('Kullanıcı listesi alma hatası', error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(String(error));
   }
 }
 

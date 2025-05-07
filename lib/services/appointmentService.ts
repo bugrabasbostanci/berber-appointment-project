@@ -11,23 +11,24 @@ export async function createAppointment(data: {
   notes?: string;
   employeeId?: string; // Personel/berber ID'si
 }): Promise<Appointment> {
-  const { employeeId, ...appointmentData } = data;
-  
-  // Notes alanına employeeId bilgisini ekleyelim
-  let notes = appointmentData.notes || '';
-  
-  // Eğer employeeId varsa, notes alanına "EmployeeId:[id]" şeklinde ekleyelim
-  if (employeeId) {
-    if (notes) {
-      notes += '\n';
-    }
-    notes += `EmployeeId:${employeeId}`;
-  }
-  
+  let finalNotes = data.notes;
+  // İsteğe bağlı: Eğer eski formatta employeeId notes içindeyse temizle.
+  // Bu kısım projenin mevcut durumuna göre eklenebilir veya atlanabilir.
+  // if (finalNotes && data.employeeId) {
+  //   const regex = new RegExp(`\\n?EmployeeId:${data.employeeId}`);
+  //   finalNotes = finalNotes.replace(regex, '').trim();
+  //   if (finalNotes === '') finalNotes = undefined; // Notlar tamamen boş kaldıysa undefined yap
+  // }
+
   return prisma.appointment.create({
     data: {
-      ...appointmentData,
-      notes
+      shopId: data.shopId,
+      userId: data.userId,
+      date: data.date,
+      time: data.time,
+      endTime: data.endTime,
+      notes: finalNotes, // Güncellenmiş notlar (varsa)
+      employeeId: data.employeeId // Yeni employeeId alanı kullanılıyor
     }
   });
 }
@@ -92,6 +93,13 @@ export async function getCustomerAppointments(
     include: {
       shop: true,
       user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true
+        }
+      },
+      employee: {
         select: {
           id: true,
           firstName: true,

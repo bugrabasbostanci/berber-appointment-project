@@ -68,13 +68,13 @@ export default function FeedbackPage() {
         ) : (
           <>
             <CardHeader>
-              <CardTitle>Proje Geri Bildirim Formu</CardTitle>
-              <CardDescription>Projemiz hakkındaki düşüncelerinizi ve değerlendirmelerinizi bizimle paylaşın.</CardDescription>
+              <CardTitle>Uygulama Geri Bildirim Formu</CardTitle>
+              <CardDescription>Uygulamamız hakkındaki düşüncelerinizi ve değerlendirmelerinizi bizimle paylaşın.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Projemizi genel olarak nasıl değerlendirirsiniz?</Label>
+                  <Label>Uygulamamızı genel olarak nasıl değerlendirirsiniz?</Label>
                   <RadioGroup value={rating} onValueChange={setRating} className="flex space-x-1" defaultValue="5">
                     {[1, 2, 3, 4, 5].map((value) => (
                       <div key={value} className="flex flex-col items-center space-y-1">
@@ -105,7 +105,7 @@ export default function FeedbackPage() {
                   <Label htmlFor="feedback">Görüşleriniz</Label>
                   <Textarea
                     id="feedback"
-                    placeholder="Projemiz hakkındaki genel görüşlerinizi, beğendiğiniz veya geliştirilmesini istediğiniz noktaları yazabilirsiniz..."
+                    placeholder="Uygulamamız hakkındaki genel görüşlerinizi, beğendiğiniz veya geliştirilmesini istediğiniz noktaları yazabilirsiniz..."
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
                     className="min-h-32"

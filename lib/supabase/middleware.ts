@@ -47,7 +47,7 @@ export async function updateSession(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    const userRole = user?.user_metadata?.role || "customer"
+    const userRole = (user?.user_metadata?.role || "customer").toLowerCase();
 
     return NextResponse.redirect(new URL(`/dashboard/${userRole}`, request.url))
   }

@@ -5,11 +5,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Menu, Home, Scissors, Info, Star, Phone, User, LayoutDashboard, Settings, LogOut } from "lucide-react"
+import { Menu, Home, Scissors, Info, Star, Phone, User, LayoutDashboard, Settings, LogOut, Sun, Moon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/features/auth/providers/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import useUserStore from "@/app/stores/userStore"
+import { useTheme } from "next-themes"
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
@@ -17,6 +18,7 @@ export function MobileSidebar() {
   const { user, dbUser } = useAuth()
   const userStore = useUserStore()
   const isLoggedIn = !!userStore.isAuthenticated && !!userStore.dbUser
+  const { theme, setTheme } = useTheme()
 
   const closeSheet = () => setOpen(false)
   const toggleSheet = () => setOpen(!open)
@@ -33,9 +35,8 @@ export function MobileSidebar() {
   // Kullanıcı giriş yapmışsa ek navigasyon öğeleri
   const userNavItems = isLoggedIn && userStore.dbUser
     ? [
-        { title: "Dashboard", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}`, icon: LayoutDashboard },
+        { title: "Randevular", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}`, icon: LayoutDashboard },
         { title: "Profil", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}/profile`, icon: User },
-        { title: "Ayarlar", href: `/dashboard/${userStore.dbUser.role.toLowerCase()}/settings`, icon: Settings },
       ]
     : []
 
@@ -78,7 +79,6 @@ export function MobileSidebar() {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">{getFullName()}</span>
-                    <span className="truncate text-xs text-muted-foreground">{userStore.dbUser.email}</span>
                   </div>
                 </div>
               ) : (
@@ -133,6 +133,16 @@ export function MobileSidebar() {
                       {item.title}
                     </Link>
                   ))}
+                  <button
+                    onClick={() => {
+                      setTheme(theme === "dark" ? "light" : "dark");
+                      closeSheet();
+                    }}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    <span>{theme === "dark" ? "Açık Mod" : "Koyu Mod"}</span>
+                  </button>
                 </>
               )}
             </nav>

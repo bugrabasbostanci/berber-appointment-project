@@ -23,7 +23,6 @@ export function Navbar() {
 
         {/* Mobile Sidebar and Theme Toggle */}
         <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle />
           <MobileSidebar />
         </div>
 
@@ -57,9 +56,7 @@ export function Navbar() {
         </nav>
 
         {/* Desktop Auth Buttons or User Account Nav */}
-        <div className="hidden md:flex items-center gap-2">
-          <ThemeToggle />
-          
+        <div className="hidden md:flex items-center gap-2">          
           {isLoggedIn ? (
             <UserAccountNav />
           ) : (

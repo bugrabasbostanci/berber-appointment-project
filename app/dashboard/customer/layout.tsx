@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, Home, LogOut, MessageSquare, Moon, PanelLeft, Scissors, Settings, Sun, User } from "lucide-react"
+import { Calendar, Home, LogOut, MessageSquare, Moon, PanelLeft, Scissors, Settings, Sun, User, LayoutDashboard, ChevronsUpDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -15,6 +15,22 @@ import { useTheme } from "next-themes"
 import { signOut } from "@/lib/supabase/auth"
 import { useAuth } from "@/features/auth/hooks/use-auth"
 import useUserStore from "@/app/stores/userStore"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+  SidebarProvider,
+} from "@/components/ui/sidebar"
 
 export default function CustomerDashboardLayout({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -41,64 +57,33 @@ export default function CustomerDashboardLayout({ children }: { children: React.
   }, [])
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background">
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileOpen(true)}>
-          <PanelLeft className="h-5 w-5" />
-          <span className="sr-only">Toggle Menu</span>
-        </Button>
-        <h1 className="text-lg font-semibold">
-          {pathname === "/dashboard/customer"
-            ? "Müşteri Paneli"
-            : pathname === "/dashboard/customer/appointments"
-              ? "Randevularım"
-              : pathname === "/dashboard/customer/profile"
-                ? "Profilim"
-                : pathname === "/dashboard/customer/feedback"
-                  ? "Geri Bildirim"
-                  : "Müşteri Paneli"}
-        </h1>
-      </header>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full flex-col bg-background">
+        {/* Mobile Header */}
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
+          <Button variant="ghost" size="icon" onClick={() => setIsMobileOpen(true)}>
+            <PanelLeft className="h-5 w-5" />
+            <span className="sr-only">Toggle Menu</span>
+          </Button>
+          <h1 className="text-lg font-semibold">
+            {pathname === "/dashboard/customer"
+              ? "Müşteri Paneli"
+              : pathname === "/dashboard/customer/appointments"
+                ? "Randevularım"
+                : pathname === "/dashboard/customer/profile"
+                  ? "Profilim"
+                  : pathname === "/dashboard/customer/feedback"
+                    ? "Geri Bildirim"
+                    : "Müşteri Paneli"}
+          </h1>
+        </header>
 
-      {/* Mobile Sidebar */}
-      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
-        <SheetContent side="left" className="w-[280px] p-0 sm:w-[320px]">
-          <div className="flex h-full flex-col">
-            <div className="p-4">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex aspect-square h-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <Scissors className="h-4 w-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="font-semibold">The Barber Shop</span>
-                  <span className="text-xs text-muted-foreground">Men's Club</span>
-                </div>
-              </div>
-            </div>
-            <ScrollArea className="flex-1">
-              <nav className="flex flex-col gap-2 p-2">
-                <NavItems pathname={pathname} setIsMobileOpen={setIsMobileOpen} />
-              </nav>
-            </ScrollArea>
-            <div className="mt-auto border-t p-4">
-              <UserMenu />
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex flex-1">
-        {/* Desktop Sidebar */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r bg-background transition-transform md:flex ${
-            isOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            <div className="p-4">
-              <div className="mb-4 flex items-center gap-2">
-                <Link href="/" className="flex items-center gap-2">
+        {/* Mobile Sidebar */}
+        <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+          <SheetContent side="left" className="w-[280px] p-0 sm:w-[320px]">
+            <div className="flex h-full flex-col">
+              <div className="p-4">
+                <div className="mb-4 flex items-center gap-2">
                   <div className="flex aspect-square h-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
                     <Scissors className="h-4 w-4" />
                   </div>
@@ -106,81 +91,102 @@ export default function CustomerDashboardLayout({ children }: { children: React.
                     <span className="font-semibold">The Barber Shop</span>
                     <span className="text-xs text-muted-foreground">Men's Club</span>
                   </div>
-                </Link>
+                </div>
+              </div>
+              <ScrollArea className="flex-1">
+                <nav className="flex flex-col gap-2 p-2">
+                  <NavItems pathname={pathname} setIsMobileOpen={setIsMobileOpen} />
+                </nav>
+              </ScrollArea>
+              <div className="mt-auto border-t p-4">
+                <UserMenu />
               </div>
             </div>
-            <ScrollArea className="flex-1">
-              <nav className="flex flex-col gap-2 p-2">
-                <NavItems pathname={pathname} setIsMobileOpen={setIsMobileOpen} />
-              </nav>
-            </ScrollArea>
-            <div className="mt-auto border-t p-4">
-              <UserMenu />
+          </SheetContent>
+        </Sheet>
+
+        <div className="flex flex-1">
+          {/* Desktop Sidebar */}
+          <aside
+            className={`fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r bg-background transition-transform md:flex ${
+              isOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            <div className="flex h-full flex-col">
+              <div className="p-4">
+                <div className="mb-4 flex items-center gap-2">
+                  <Link href="/" className="flex items-center gap-2">
+                    <div className="flex aspect-square h-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                      <Scissors className="h-4 w-4" />
+                    </div>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="font-semibold">The Barber Shop</span>
+                      <span className="text-xs text-muted-foreground">Men's Club</span>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+              <ScrollArea className="flex-1">
+                <nav className="flex flex-col gap-2 p-2">
+                  <NavItems pathname={pathname} setIsMobileOpen={setIsMobileOpen} />
+                </nav>
+              </ScrollArea>
+              <div className="mt-auto border-t p-4">
+                <UserMenu />
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
 
-        {/* Main Content */}
-        <main className={`flex-1 transition-all duration-200 ease-in-out ${isOpen ? "md:ml-64" : "md:ml-0"}`}>
-          {/* Desktop Header with Sidebar Toggle */}
-          <div className="hidden h-14 items-center gap-4 border-b bg-background px-4 md:flex">
-            <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)}>
-              <PanelLeft className="h-5 w-5" />
-              <span className="sr-only">Toggle Sidebar</span>
-            </Button>
-            <h1 className="text-lg font-semibold">
-              {pathname === "/dashboard/customer"
-                ? "Müşteri Paneli"
-                : pathname === "/dashboard/customer/appointments"
-                  ? "Randevularım"
-                  : pathname === "/dashboard/customer/profile"
-                    ? "Profilim"
-                    : pathname === "/dashboard/customer/feedback"
-                      ? "Geri Bildirim"
-                      : "Müşteri Paneli"}
-            </h1>
-          </div>
+          {/* Main Content */}
+          <main className={`flex-1 transition-all duration-200 ease-in-out ${isOpen ? "md:ml-64" : "md:ml-0"}`}>
+            {/* Desktop Header with Sidebar Toggle */}
+            <div className="hidden h-14 items-center gap-4 border-b bg-background px-4 md:flex">
+              <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)}>
+                <PanelLeft className="h-5 w-5" />
+                <span className="sr-only">Toggle Sidebar</span>
+              </Button>
+              <h1 className="text-lg font-semibold">
+                {pathname === "/dashboard/customer"
+                  ? "Müşteri Paneli"
+                  : pathname === "/dashboard/customer/appointments"
+                    ? "Randevularım"
+                    : pathname === "/dashboard/customer/profile"
+                      ? "Profilim"
+                      : pathname === "/dashboard/customer/feedback"
+                        ? "Geri Bildirim"
+                        : "Müşteri Paneli"}
+              </h1>
+            </div>
 
-          {/* Page Content */}
-          {children}
-        </main>
+            {/* Page Content */}
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }
 
 function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobileOpen: (open: boolean) => void }) {
   const handleLinkClick = () => {
-    // Close the mobile sidebar when a link is clicked
     setIsMobileOpen(false)
   }
 
   return (
     <>
       <Link
-        href="/dashboard/customer"
+        href="/dashboard/customer" 
         className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/customer"
-            ? "bg-accent text-accent-foreground"
-            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        }`}
-        onClick={handleLinkClick}
-      >
-        <Home className="h-5 w-5" />
-        <span>Genel Bakış</span>
-      </Link>
-      <Link
-        href="/dashboard/customer/appointments"
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
-          pathname === "/dashboard/customer/appointments"
+          pathname === "/dashboard/customer" // Sadece /dashboard/customer için aktif
             ? "bg-accent text-accent-foreground"
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         }`}
         onClick={handleLinkClick}
       >
         <Calendar className="h-5 w-5" />
-        <span>Randevularım</span>
+        <span>Randevular</span>
       </Link>
+      
       <Link
         href="/dashboard/customer/profile"
         className={`flex items-center gap-3 rounded-lg px-3 py-2 ${
@@ -205,30 +211,13 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
         <MessageSquare className="h-5 w-5" />
         <span>Geri Bildirim</span>
       </Link>
-
-      {/* New Appointment Button */}
-      <div className="mt-4 px-3">
+      <div className="mt-auto pt-4 px-3">
         <Link
           href="/appointments/new"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90"
           onClick={handleLinkClick}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d="M8 12h8" />
-            <path d="M12 8v8" />
-            <circle cx="12" cy="12" r="10" />
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M8 12h8" /><path d="M12 8v8" /><circle cx="12" cy="12" r="10" /></svg>
           <span>Yeni Randevu</span>
         </Link>
       </div>
@@ -237,83 +226,91 @@ function NavItems({ pathname, setIsMobileOpen }: { pathname: string; setIsMobile
 }
 
 function UserMenu() {
-  const [open, setOpen] = useState(false)
   const { theme, setTheme } = useTheme()
-  const { user, dbUser } = useAuth()
   const userStore = useUserStore()
+  const { isMobile } = useSidebar()
+
   const handleSignOut = async () => {
     await signOut()
   }
 
-  // Avatar fallback için kullanıcı adının baş harflerini oluştur
-  const getInitials = () => {
+  const getInitials = (): string => {
     return userStore.getInitials()
   }
 
-  // Tam adı al
-  const getFullName = () => {
+  const getFullName = (): string => {
     return userStore.getFullName() || 'Kullanıcı'
   }
 
-  // Profil resmini al
-  const getProfileImage = () => {
+  const getProfileImage = (): string => {
     return userStore.getProfileImage() || ""
+  }
+  
+  const dashboardPath = userStore.dbUser ? `/dashboard/${userStore.dbUser.role.toLowerCase()}` : "/dashboard/customer";
+
+  if (!userStore.isAuthenticated || !userStore.dbUser) {
+    return null;
   }
 
   return (
-    <div className="relative">
-      <div
-        onClick={() => setOpen(!open)}
-        className="flex w-full cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-accent"
-      >
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden">
-          <Avatar className="h-full w-full rounded-md">
-            <AvatarImage src={getProfileImage()} alt="User" />
-            <AvatarFallback>{getInitials()}</AvatarFallback>
-          </Avatar>
-        </div>
-        <div className="flex-1 text-left">
-          <p className="text-sm font-medium">{getFullName()}</p>
-          <p className="text-xs text-muted-foreground">{userStore.dbUser?.email}</p>
-        </div>
-        <Settings className="h-4 w-4 text-muted-foreground" />
-      </div>
-
-      {open && (
-        <div className="absolute bottom-full left-0 mb-2 w-56 rounded-md border bg-popover p-1 shadow-md">
-          <Link
-            href="/"
-            className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm"
-            onClick={() => setOpen(false)}
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage src={getProfileImage()} alt={getFullName()} />
+                <AvatarFallback className="rounded-lg">{getInitials()}</AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">{getFullName()}</span>
+                <span className="truncate text-xs text-muted-foreground">{userStore.dbUser?.email}</span>
+              </div>
+              <ChevronsUpDown className="ml-auto size-4" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+            side={isMobile ? "bottom" : "right"}
+            align="end"
+            sideOffset={4}
           >
-            <Home className="mr-2 h-4 w-4" />
-            <span>Ana Sayfa</span>
-          </Link>
-          <div className="h-px bg-border my-1" />
-          <button
-            className="flex w-full items-center justify-between px-2 py-1.5 text-sm hover:bg-accent rounded-sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <div className="flex items-center">
-              {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-              <span>{theme === "dark" ? "Açık Mod" : "Koyu Mod"}</span>
-            </div>
-          </button>
-          <Link
-            href="/dashboard/customer/profile"
-            className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm"
-            onClick={() => setOpen(false)}
-          >
-            <User className="mr-2 h-4 w-4" />
-            <span>Profilim</span>
-          </Link>
-          <div className="h-px bg-border my-1" />
-          <button className="flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm" onClick={handleSignOut}>  
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Çıkış Yap</span>
-          </button>
-        </div>
-      )}
-    </div>
+            <DropdownMenuLabel className="p-0 font-normal">
+              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                <Avatar className="h-8 w-8 rounded-lg">
+                  <AvatarImage src={getProfileImage()} alt={getFullName()} />
+                  <AvatarFallback className="rounded-lg">{getInitials()}</AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">{getFullName()}</span>
+                  <span className="truncate text-xs text-muted-foreground">{userStore.dbUser?.email}</span>
+                </div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href="/" className="cursor-pointer w-full">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  <span>Ana Sayfa</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="cursor-pointer">
+                {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                <span>{theme === "dark" ? "Açık Mod" : "Koyu Mod"}</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Çıkış Yap</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   )
 }

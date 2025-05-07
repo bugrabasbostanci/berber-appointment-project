@@ -13,16 +13,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BadgeCheck, LogOut, Settings, User, LayoutDashboard } from "lucide-react"
+import { BadgeCheck, LogOut, Settings, User, LayoutDashboard, Sun, Moon } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "../providers/auth-provider"
 import useUserStore from "@/app/stores/userStore"
+import { useTheme } from "next-themes"
 
 export function UserAccountNav() {
   const { user, dbUser } = useAuth()
   const userStore = useUserStore()
   const supabase = createClient()
   const pathname = usePathname()
+  const { theme, setTheme } = useTheme()
   
   // Kullanıcı oturumunu kapat
   const handleSignOut = async () => {
@@ -55,7 +57,6 @@ export function UserAccountNav() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{fullName}</p>
-            <p className="text-xs leading-none text-muted-foreground">{userStore.dbUser.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -63,7 +64,7 @@ export function UserAccountNav() {
           <DropdownMenuItem asChild>
             <Link href={dashboardPath}>
               <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>Dashboard</span>
+              <span>Randevular</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
@@ -72,11 +73,9 @@ export function UserAccountNav() {
               <span>Profil</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={`${dashboardPath}/settings`}>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Ayarlar</span>
-            </Link>
+          <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+            <span>{theme === "dark" ? "Açık Mod" : "Koyu Mod"}</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

@@ -11,9 +11,9 @@ import { AppointmentSteps } from "./appointment-steps"
 import { Separator } from "@/components/ui/separator"
 
 // Tip tanımlamalarını dışa çıkaralım
-type AvailabilityData = {
+type AvailabilityDataFromAPI = { // API'den gelen veri için ayrı bir tip
   date: string;
-  timeSlots: Record<string, any>;
+  timeSlots: { slots?: Array<{ available?: boolean, [key: string]: any }> }; // timeSlots'un iç yapısını daha net tanımla
   isAvailable: boolean;
   shop?: {
     id: string;
@@ -28,24 +28,24 @@ type AvailabilityData = {
   }>;
 };
 
-type AvailabilityState = {
-  high: number[];
-  medium: number[];
-  low: number[];
-  closed: number[];
+// Takvimde kullanılacak state için tip tanımı
+export type DailyCalendarInfoFromAPI = {
+  date: string; // YYYY-MM-DD
+  isSpecificallyClosed: boolean;
+  bookedAppointmentsCount: number;
 };
+
+// Pazar günlerini de ayırt etmek için bir union type kullanalım
+type EnhancedDailyInfo = DailyCalendarInfoFromAPI | "sunday-closed";
+type AvailabilityDisplayState = Record<string, EnhancedDailyInfo>; // Anahtar: YYYY-MM-DD
 
 export function DateSelectionForm() {
   const router = useRouter()
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [today] = useState<Date>(new Date())
-  const [availabilityData, setAvailabilityData] = useState<AvailabilityState>({
-    high: [],
-    medium: [],
-    low: [],
-    closed: [0], // Sundays will be added dynamically
-  })
+  // Güncellenmiş state ve tipi
+  const [availabilityData, setAvailabilityData] = useState<AvailabilityDisplayState>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [shopId, setShopId] = useState<string | null>(null)
@@ -57,7 +57,8 @@ export function DateSelectionForm() {
         setLoading(true)
         setError(null)
         
-        // Varsayılan olarak ilk dükkanı getirme
+        console.log(`[date-selection-form] Current month for fetch: ${currentMonth.toISOString()}`);
+        
         const shopResponse = await fetch('/api/shops?take=1')
         if (!shopResponse.ok) {
           throw new Error('Dükkan bilgileri getirilemedi')
@@ -71,69 +72,50 @@ export function DateSelectionForm() {
         const selectedShopId = shopData.shops[0].id
         setShopId(selectedShopId)
         
-        // Ay için formatlı tarihler
-        const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-        const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+        // API için başlangıç ve bitiş tarihlerini YYYY-MM-DD formatında manuel oluştur
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1; // getMonth 0-indexed olduğu için +1
+
+        // Başlangıç tarihi (ayın ilk günü)
+        const startDateForAPI = `${year}-${month.toString().padStart(2, '0')}-01`;
+
+        // Bitiş tarihi (ayın son günü)
+        // Ayın son gününü bulmak için bir sonraki ayın 0. gününü kullanabiliriz
+        const lastDayOfMonth = new Date(year, month, 0).getDate(); // month burada 1-indexed
+        const endDateForAPI = `${year}-${month.toString().padStart(2, '0')}-${lastDayOfMonth.toString().padStart(2, '0')}`;
         
-        // Dükkanın müsaitlik durumunu getir
+        console.log(`[date-selection-form] Manually Formatted dates for API: startDate=${startDateForAPI}, endDate=${endDateForAPI}`);
+        
         const availabilityResponse = await fetch(
-          `/api/shops/${selectedShopId}/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}`
-        )
+          `/api/shops/${selectedShopId}/availability?startDate=${startDateForAPI}&endDate=${endDateForAPI}`
+        );
         
         if (!availabilityResponse.ok) {
-          throw new Error('Müsaitlik verileri getirilemedi')
+          // Hata mesajını API yanıtından almaya çalışalım (varsa)
+          let errorMsg = 'Müsaitlik verileri getirilemedi';
+          try {
+            const errorData = await availabilityResponse.json();
+            errorMsg = errorData.error || errorMsg;
+          } catch (e) {
+            // JSON parse edilemezse varsayılan mesaj kullanılır
+          }
+          throw new Error(errorMsg);
         }
         
-        const availabilityResponseData = await availabilityResponse.json()
-        
-        // API verisini müsaitlik seviyelerine ayır
-        const highAvailabilityDays: number[] = []
-        const mediumAvailabilityDays: number[] = []
-        const lowAvailabilityDays: number[] = []
+        const dailyInfoFromAPI: DailyCalendarInfoFromAPI[] = await availabilityResponse.json();
+        console.log("API Müsaitlik Yanıtı (Yeni Format):", dailyInfoFromAPI);
 
-        // Prisma şemanızdaki yapıya göre veriyi dönüştürüyoruz
-        if (Array.isArray(availabilityResponseData)) {
-          availabilityResponseData.forEach((dayData: AvailabilityData) => {
-            if (!dayData || !dayData.date || !dayData.isAvailable) return;
-            
-            const date = new Date(dayData.date);
-            const day = date.getDate();
-            
-            // Güncellenmiş şemaya göre timeSlots değerini kullanarak müsaitlik hesaplama
-            if (!dayData.timeSlots) return;
-            
-            const timeSlots = dayData.timeSlots || {};
-            const timeSlotKeys = Object.keys(timeSlots);
-            
-            // Kullanılabilir slot sayısını hesapla
-            // Yeni şemaya göre available olan slotları sayalım
-            const availableSlots = timeSlotKeys.filter(slot => 
-              typeof timeSlots[slot] === 'object' && 
-              timeSlots[slot].available === true
-            ).length;
-            
-            const totalSlots = timeSlotKeys.length || 20; // varsayılan değer
-            
-            const availabilityPercentage = totalSlots > 0 
-              ? (availableSlots / totalSlots) * 100
-              : 0;
-            
-            if (availabilityPercentage >= 70) {
-              highAvailabilityDays.push(day);
-            } else if (availabilityPercentage >= 30) {
-              mediumAvailabilityDays.push(day);
-            } else {
-              lowAvailabilityDays.push(day);
-            }
+        const newAvailabilityDisplayData: AvailabilityDisplayState = {};
+
+        if (Array.isArray(dailyInfoFromAPI)) {
+          dailyInfoFromAPI.forEach((dayInfo: DailyCalendarInfoFromAPI) => {
+            if (!dayInfo || !dayInfo.date) return; // Gerekli alanları kontrol et
+            newAvailabilityDisplayData[dayInfo.date] = dayInfo; // date (YYYY-MM-DD) anahtar olarak kullanılır
           });
         }
         
-        setAvailabilityData({
-          high: highAvailabilityDays,
-          medium: mediumAvailabilityDays,
-          low: lowAvailabilityDays,
-          closed: [0] // Pazar günleri kapalı
-        })
+        console.log("İşlenmiş Müsaitlik Günleri (Yeni Format):", newAvailabilityDisplayData);
+        setAvailabilityData(newAvailabilityDisplayData);
         
       } catch (caughtError) {
         const errorMessage = caughtError instanceof Error 
@@ -143,13 +125,7 @@ export function DateSelectionForm() {
         console.error("Müsaitlik verileri yüklenirken hata:", caughtError);
         setError(errorMessage);
         
-        // Hata durumunda varsayılan müsaitlik verisi kullan
-        setAvailabilityData({
-          high: [1, 5, 9, 13, 17, 21, 25, 29],
-          medium: [2, 6, 10, 14, 18, 22, 26, 30],
-          low: [3, 7, 11, 15, 19, 23, 27, 31],
-          closed: [0]
-        })
+        setAvailabilityData({}); // Hata durumunda müsaitlik verisini temizle
       } finally {
         setLoading(false)
       }
@@ -236,8 +212,8 @@ export function DateSelectionForm() {
 
   // Check if a day is a Sunday
   const isSunday = (day: number) => {
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
-    return date.getDay() === 0
+    const dateToCheck = new Date(Date.UTC(currentMonth.getFullYear(), currentMonth.getMonth(), day));
+    return dateToCheck.getUTCDay() === 0; // 0 Pazar günüdür UTC'de
   }
 
   // Check if a day is in the past
@@ -262,13 +238,52 @@ export function DateSelectionForm() {
   }
 
   // Get availability level for a day
-  const getAvailabilityLevel = (day: number) => {
-    if (isSunday(day)) return "closed"
-    if (availabilityData.high.includes(day)) return "high"
-    if (availabilityData.medium.includes(day)) return "medium"
-    if (availabilityData.low.includes(day)) return "low"
-    return "medium" // Default
-  }
+  const getAvailabilityLevel = (day: number): "high" | "medium" | "low" | "closed" => {
+    const dayIsSunday = isSunday(day);
+    if (dayIsSunday) return "closed";
+
+    // Takvimdeki gün için YYYY-MM-DD formatında string oluştur (UTC bazlı)
+    const dateToCheckUTC = new Date(Date.UTC(currentMonth.getFullYear(), currentMonth.getMonth(), day));
+    const yearStr = dateToCheckUTC.getUTCFullYear();
+    const monthStr = (dateToCheckUTC.getUTCMonth() + 1).toString().padStart(2, '0');
+    const dayStr = dateToCheckUTC.getUTCDate().toString().padStart(2, '0');
+    const fullDateString = `${yearStr}-${monthStr}-${dayStr}`;
+
+    const dayInfo = availabilityData[fullDateString];
+
+    if (dayInfo) {
+      if (dayInfo === "sunday-closed") { // Bu durum yukarıda zaten ele alındı ama tip kontrolü için kalabilir
+        return "closed";
+      }
+      // DailyCalendarInfoFromAPI tipinde olmalı
+      if (typeof dayInfo === 'object') {
+        if (dayInfo.isSpecificallyClosed) {
+          return "closed";
+        }
+
+        const bookedCount = dayInfo.bookedAppointmentsCount;
+        const totalCapacity = 32; // Günlük toplam kapasite
+        
+        // Kapasite 0 veya daha azsa (olmamalı ama kontrol edelim)
+        if (totalCapacity <= 0) return "low"; 
+
+        const availableSlots = Math.max(0, totalCapacity - bookedCount); // Negatif olmasın
+        const availabilityPercentage = (availableSlots / totalCapacity) * 100;
+
+        if (availabilityPercentage >= 70) return "high";
+        if (availabilityPercentage >= 30) return "medium";
+        if (availabilityPercentage > 0) return "low";
+        return "low"; // Hiç yer kalmamışsa (bookedCount >= totalCapacity)
+      }
+    }
+    
+    // Eğer API'den o gün için özel bir veri gelmemişse ve Pazar değilse,
+    // "normal şartlarda açık" kabul edip, 0 randevu alınmış gibi varsayarak "high" döneriz.
+    // Bu, API'nin o gün için { date: "YYYY-MM-DD", isSpecificallyClosed: false, bookedAppointmentsCount: 0 } gibi bir kayıt
+    // DÖNDÜRMEDİĞİ durumlar için bir geri çekilme (fallback) mekanizmasıdır.
+    // İdealde API, istenen aralıktaki her gün için bir kayıt döndürmelidir.
+    return "high"; 
+  };
 
   // Days of week
   const daysOfWeek = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]

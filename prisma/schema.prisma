@@ -91,6 +91,8 @@ model Appointment {
   review     Review?  @relation(fields: [reviewId], references: [id], onDelete: SetNull)
 
   @@map("appointments")
+  @@index([shopId, date])
+  @@index([employeeId])
 }
 
 model AvailableTime {
@@ -108,6 +110,7 @@ model AvailableTime {
   profiles Profile[]
 
   @@map("available_times")
+  @@index([shopId, date])
 }
 
 model Service {

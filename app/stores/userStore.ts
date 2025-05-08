@@ -58,7 +58,6 @@ const useUserStore = create<UserState>()(
       isAuthenticated: false,
 
       setAuthUser: (user) => {
-        console.log("setAuthUser çağrıldı:", user);
         set({
           authUser: user,
           isAuthenticated: !!user,
@@ -66,7 +65,6 @@ const useUserStore = create<UserState>()(
       },
 
       setDbUser: (user: DbUser | null) => {
-         console.log("setDbUser çağrıldı:", user);
          set({
             dbUser: user, 
          });
@@ -79,7 +77,6 @@ const useUserStore = create<UserState>()(
       isGoogleUser: () => {
         const { dbUser } = get();
         const isGoogle = dbUser?.provider === "google";
-        console.log('isGoogleUser Kontrolü (dbUser):', { provider: dbUser?.provider, isGoogle });
         return isGoogle;
       },
       

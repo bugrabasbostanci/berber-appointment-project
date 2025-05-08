@@ -484,3 +484,95 @@ export async function getShopCalendar(
   };
 }
 
+export type DailyCalendarInfo = {
+  date: string; // YYYY-MM-DD
+  isSpecificallyClosed: boolean;
+  bookedAppointmentsCount: number;
+  // İleride dükkanın o gün için genel çalışma saatleri/kapasitesi de eklenebilir
+};
+
+/**
+ * Belirli bir dükkan için aylık takvim görünümüne uygun müsaitlik ve randevu bilgilerini getirir.
+ * İstenen tarih aralığındaki her gün için veri döndürür. (Optimize Edilmiş Versiyon)
+ */
+export async function getShopMonthlyCalendarView(
+  shopId: string,
+  startDate: Date, // UTC gün başlangıcı
+  endDate: Date    // UTC gün sonu (dahil)
+): Promise<DailyCalendarInfo[]> {
+  console.log(`[getShopMonthlyCalendarView OPTIMIZED] Starting for shopId: ${shopId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+  // 1. Belirtilen tarih aralığındaki tüm ilgili AvailableTime kayıtlarını çek
+  const availableTimeRecords = await prisma.availableTime.findMany({
+    where: {
+      shopId: shopId,
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+  });
+  const availableTimeMap = new Map(
+    availableTimeRecords.map(r => [r.date.toISOString().split('T')[0], r])
+  );
+  console.log(`[getShopMonthlyCalendarView OPTIMIZED] Fetched ${availableTimeRecords.length} AvailableTime records.`);
+
+  // 2. Belirtilen tarih aralığındaki tüm ilgili Appointment kayıtlarını say (tarihe göre gruplayarak)
+  // Appointment modelindeki 'date' alanı günün başlangıcını (00:00:00 UTC) tutuyorsa groupBy ['date'] yeterlidir.
+  // Eğer 'date' alanı saati de içeriyorsa, gün bazında gruplama için ek işlem gerekebilir.
+  // Şimdilik 'date' alanının günün başlangıcını tuttuğunu varsayıyoruz veya Prisma'nın bunu doğru şekilde gruplayabildiğini.
+  const appointmentCountsByDateRaw = await prisma.appointment.groupBy({
+    by: ['date'],
+    where: {
+      shopId: shopId,
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+      // Gerekirse randevu durumuna göre filtre ekleyin
+      // status: AppointmentStatus.CONFIRMED, 
+    },
+    _count: {
+      id: true, // veya _all: true
+    },
+    orderBy: { // İsteğe bağlı, ama işlerken sıralı olması yardımcı olabilir
+      date: 'asc',
+    }
+  });
+
+  const bookedCountsMap = new Map<string, number>();
+  appointmentCountsByDateRaw.forEach(item => {
+    // item.date bir Date nesnesi olacak. Bunu YYYY-MM-DD string'ine çevir.
+    const dayString = item.date.toISOString().split('T')[0];
+    bookedCountsMap.set(dayString, item._count.id || 0);
+  });
+  console.log(`[getShopMonthlyCalendarView OPTIMIZED] Fetched ${appointmentCountsByDateRaw.length} date groups for Appointment counts.`);
+
+  // 3. Sonuçları oluşturmak için tarih aralığında döngü yap (veritabanı sorgusu olmadan)
+  const results: DailyCalendarInfo[] = [];
+  const currentDate = new Date(startDate);
+  const loopEndDate = new Date(endDate); // endDate zaten gün sonu, döngü için +1 gün
+  loopEndDate.setUTCDate(loopEndDate.getUTCDate() + 1);
+  loopEndDate.setUTCHours(0,0,0,0);
+
+
+  while (currentDate < loopEndDate) {
+    const dayString = currentDate.toISOString().split('T')[0];
+    
+    const availableTimeRecord = availableTimeMap.get(dayString);
+    const isSpecificallyClosed = availableTimeRecord ? !availableTimeRecord.isAvailable : false;
+    const bookedAppointmentsCount = bookedCountsMap.get(dayString) || 0;
+
+    results.push({
+      date: dayString,
+      isSpecificallyClosed,
+      bookedAppointmentsCount,
+    });
+
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+  
+  console.log(`[getShopMonthlyCalendarView OPTIMIZED] Finished processing. Generated ${results.length} daily records.`);
+  return results;
+}
+

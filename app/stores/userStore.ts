@@ -28,6 +28,7 @@ type DbUser = {
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  googleMetadata?: GoogleMetadata | any; // googleMetadata eklendi
 };
 
 interface UserState {

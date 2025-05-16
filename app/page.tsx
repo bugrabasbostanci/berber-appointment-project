@@ -19,14 +19,27 @@ interface Review {
 
 async function getLatestReviews(): Promise<Review[]> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/feedback`, { 
+    const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/feedback`;
+    console.log("Fetching reviews from:", apiUrl); // URL\'yi kontrol etmek için eklendi
+    const res = await fetch(apiUrl, { 
       next: { revalidate: 60 } // Her 60 saniyede bir yeniden doğrula (veya isteğe bağlı olarak daha uzun)
     });
+
     if (!res.ok) {
-      console.error("Failed to fetch reviews:", res.status, await res.text());
+      console.error("Failed to fetch reviews: Status ", res.status, await res.text());
       return [];
     }
-    return res.json();
+
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      return res.json();
+    } else {
+      // Yanıt JSON değilse, metin olarak logla ve boş dizi döndür.
+      const responseText = await res.text(); // Önce metni al
+      console.error("Failed to fetch reviews: Expected JSON, got", contentType, responseText); 
+      return [];
+    }
+
   } catch (error) {
     console.error("Error fetching reviews:", error);
     return [];

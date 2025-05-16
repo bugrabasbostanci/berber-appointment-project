@@ -75,95 +75,111 @@ export default function ProfilePage() {
     }
 
     const initializeProfileData = async () => {
-      let currentFormData = { ...formData }; // Mevcut formData'yı kopyala
-      let userToStore = dbUser;
-      let shouldUpdateDb = false;
-      const updatesForDb: Partial<User> = {};
+      try {
+        let currentFormData = { ...formData }; // Mevcut formData'yı kopyala
+        let userToStore = dbUser;
+        let shouldUpdateDb = false;
+        const updatesForDb: Partial<User> = {};
 
-      if (userToStore) {
-        currentFormData = {
-          ...currentFormData,
-          firstName: userToStore.firstName || "",
-          lastName: userToStore.lastName || "",
-          email: userToStore.email || "",
-          phone: userToStore.phone || "",
-        };
-      } else {
-        try {
-          console.log("Veritabanından kullanıcı verisi çekiliyor...");
-          const response = await fetch(`/api/users/${authUser.id}`);
-          if (!response.ok) throw new Error("Kullanıcı verileri DB'den getirilemedi");
-          userToStore = await response.json();
-          setDbUser(userToStore); // Store'u hemen güncelle
-          console.log("Veritabanından kullanıcı verisi çekildi:", userToStore);
-
+        // Eğer dbUser zaten varsa formData'yı onunla doldur
+        if (userToStore) {
           currentFormData = {
             ...currentFormData,
-            firstName: userToStore?.firstName || "",
-            lastName: userToStore?.lastName || "",
-            email: userToStore?.email || "",
-            phone: userToStore?.phone || "",
+            firstName: userToStore.firstName || "",
+            lastName: userToStore.lastName || "",
+            email: userToStore.email || "",
+            phone: userToStore.phone || "",
           };
-        } catch (error) {
-          console.error("DB profil verisi yüklenirken hata:", error);
-          // Hata durumunda Google verilerine güvenebiliriz (eğer varsa)
-        }
-      }
+        } else {
+          try {
+            console.log("Veritabanından kullanıcı verisi çekiliyor...");
+            const response = await fetch(`/api/users/${authUser.id}`);
+            if (!response.ok) throw new Error("Kullanıcı verileri DB'den getirilemedi");
+            userToStore = await response.json();
+            if (userToStore) {
+              setDbUser(userToStore); // Store'u hemen güncelle
+              console.log("Veritabanından kullanıcı verisi çekildi:", userToStore);
 
-      // Google kullanıcısıysa ve DB'de eksik bilgi varsa Google'dan al
-      const isGoogle = isGoogleUser();
-      const googleData = getGoogleData();
+              currentFormData = {
+                ...currentFormData,
+                firstName: userToStore?.firstName || "",
+                lastName: userToStore?.lastName || "",
+                email: userToStore?.email || "",
+                phone: userToStore?.phone || "",
+              };
+            } else {
+              console.error("Veritabanından kullanıcı verisi çekildi fakat boş geldi.");
+            }
+          } catch (error) {
+            console.error("DB profil verisi yüklenirken hata:", error);
+          }
+        }
 
-      if (isGoogle && googleData) {
-        console.log("Google kullanıcısı, googleData:", googleData);
-        if (!currentFormData.firstName && googleData.given_name) {
-          currentFormData.firstName = googleData.given_name;
-          updatesForDb.firstName = googleData.given_name;
-          shouldUpdateDb = true;
-          console.log("Google'dan ad alındı:", googleData.given_name);
-        }
-        if (!currentFormData.lastName && googleData.family_name) {
-          currentFormData.lastName = googleData.family_name;
-          updatesForDb.lastName = googleData.family_name;
-          shouldUpdateDb = true;
-          console.log("Google'dan soyad alındı:", googleData.family_name);
-        }
-        // Google e-postası zaten authUser.email ve dbUser.email ile senkronize olmalı
-        // Telefon Google'dan gelmiyor.
-      }
+        // Google kullanıcısı bilgileri kontrol ediliyor
+        const isGoogle = isGoogleUser();
       
-      setFormData(currentFormData); // Formu son haliyle güncelle
-
-      // Eğer Google'dan alınan bilgilerle DB güncellenmesi gerekiyorsa yap
-      if (shouldUpdateDb && Object.keys(updatesForDb).length > 0) {
-        console.log("Google verileriyle DB güncelleniyor:", updatesForDb);
-        try {
-          const patchResponse = await fetch(`/api/users/${authUser.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updatesForDb),
-          });
-          if (!patchResponse.ok) throw new Error("Google verileri DB'ye kaydedilemedi");
-          const updatedUserFromDb = await patchResponse.json();
-          setDbUser(updatedUserFromDb); // Store'u DB'den gelen son veriyle tekrar güncelle
-          console.log("Google verileri DB'ye kaydedildi, güncel kullanıcı:", updatedUserFromDb);
-          toast({
-            title: "Profil bilgileri Google ile senkronize edildi",
-            description: "Adınız ve soyadınız Google hesabınızdan alındı.",
-          });
-        } catch (error) {
-          console.error("Google verilerini DB'ye kaydederken hata:", error);
-          toast({
-            title: "Google Senkronizasyon Hatası",
-            description: "Google bilgileriniz kaydedilirken bir sorun oluştu.",
-            variant: "destructive",
-          });
+        // Sadece Google kullanıcıları için Google verilerini kontrol et
+        if (isGoogle) {
+          const googleData = getGoogleData();
+          if (googleData) {
+            console.log("Google kullanıcısı, googleData:", googleData);
+            if (!currentFormData.firstName && googleData.given_name) {
+              currentFormData.firstName = googleData.given_name;
+              updatesForDb.firstName = googleData.given_name;
+              shouldUpdateDb = true;
+              console.log("Google'dan ad alındı:", googleData.given_name);
+            }
+            if (!currentFormData.lastName && googleData.family_name) {
+              currentFormData.lastName = googleData.family_name;
+              updatesForDb.lastName = googleData.family_name;
+              shouldUpdateDb = true;
+              console.log("Google'dan soyad alındı:", googleData.family_name);
+            }
+          } else {
+            console.log("Google kullanıcısı fakat Google verileri bulunamadı.");
+          }
         }
+        
+        setFormData(currentFormData); // Formu son haliyle güncelle
+
+        // Eğer Google'dan alınan bilgilerle DB güncellenmesi gerekiyorsa yap
+        if (isGoogle && shouldUpdateDb && Object.keys(updatesForDb).length > 0) {
+          console.log("Google verileriyle DB güncelleniyor:", updatesForDb);
+          try {
+            const patchResponse = await fetch(`/api/users/${authUser.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updatesForDb),
+            });
+            if (!patchResponse.ok) throw new Error("Google verileri DB'ye kaydedilemedi");
+            const updatedUserFromDb = await patchResponse.json();
+            setDbUser(updatedUserFromDb); // Store'u DB'den gelen son veriyle tekrar güncelle
+            console.log("Google verileri DB'ye kaydedildi, güncel kullanıcı:", updatedUserFromDb);
+            toast({
+              title: "Profil bilgileri Google ile senkronize edildi",
+              description: "Adınız ve soyadınız Google hesabınızdan alındı.",
+            });
+          } catch (error) {
+            console.error("Google verilerini DB'ye kaydederken hata:", error);
+            toast({
+              title: "Google Senkronizasyon Hatası",
+              description: "Google bilgileriniz kaydedilirken bir sorun oluştu.",
+              variant: "destructive",
+            });
+          }
+        }
+      } catch (generalError) {
+        console.error("Profil verisi yüklenirken genel hata:", generalError);
+        toast({
+          title: "Profil yüklenemedi",
+          description: "Profil bilgileriniz yüklenirken bir sorun oluştu. Lütfen tekrar deneyin.",
+          variant: "destructive",
+        });
       }
     };
 
     initializeProfileData();
-  }, [authUser, dbUser, setDbUser, isGoogleUser, getGoogleData, toast]); // Bağımlılıklar güncellendi
+  }, [authUser, dbUser, formData, setDbUser, isGoogleUser, getGoogleData, toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -288,14 +304,14 @@ export default function ProfilePage() {
   const googleData = getGoogleData();
   
   // Debug için
-  console.log('Profil Sayfası Debug:', {
+  /*console.log('Profil Sayfası Debug:', {
     dbUser,
     isGoogle,
     googleData,
     fullName: getFullName(),
     hasGoogleData: !!googleData,
     email: dbUser?.email
-  });
+  });*/
   
   // Telefon numarasını formatlamak için yardımcı fonksiyon
   const formatPhoneNumber = (phone: string | null | undefined): string => {

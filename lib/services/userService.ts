@@ -96,10 +96,32 @@ export async function createUser(userData: {
         console.error(
           `Kritik Tutarsızlık: E-posta (${userData.email}) ve provider (${newProvider}) aynı olmasına rağmen farklı Supabase ID'leri. Mevcut Prisma User ID ${existingUserByEmail.id}, Yeni Supabase User ID ${userData.id}. Bu durumun incelenmesi gerekiyor.`
         );
-        // Bu durumda, çakışmayı önlemek için hata fırlatmak en güvenli yoldur.
-        throw new Error(
-          `Beklenmedik bir hesap çakışması durumu oluştu. Lütfen sistem yöneticisi ile iletişime geçin. (E-posta: ${userData.email})`
-        );
+        
+        // Hata fırlatmak yerine, mevcut kullanıcının ID'sini güncelle
+        console.log(`Kullanıcı ID'si güncelleniyor: ${existingUserByEmail.id} -> ${userData.id}`);
+        try {
+          // İlişkili kayıtları güncelle (transaction içinde kullanıcıyı da günceller/taşır)
+          await updateUserRelations(existingUserByEmail.id, userData.id);
+          
+          // Artık updateUserRelations işlemi tüm verileri taşıdığı ve 
+          // yeni ID'li kullanıcıyı oluşturduğu için yeniden sorgu yapmamız gerekiyor
+          const updatedUser = await prisma.user.findUnique({
+            where: { id: userData.id }
+          });
+          
+          if (!updatedUser) {
+            throw new Error(`Kullanıcı taşıma işlemi tamamlandı ancak yeni kullanıcı bilgileri alınamadı: ${userData.id}`);
+          }
+          
+          console.log(`Kullanıcı ID'si başarıyla güncellendi. Yeni ID: ${updatedUser.id}`);
+          return updatedUser;
+        } catch (updateError) {
+          console.error(`Kullanıcı ID güncellenirken hata:`, updateError);
+          // Bu durumda, çakışmayı önlemek için hata fırlatmak en güvenli yoldur.
+          throw new Error(
+            `Hesap bilgileriniz güncellenirken bir sorun oluştu. Lütfen daha sonra tekrar deneyin veya sistem yöneticisiyle iletişime geçin. (E-posta: ${userData.email})`
+          );
+        }
       }
     }
 
@@ -198,6 +220,92 @@ export async function deleteUser(id: string): Promise<User> {
       throw error;
     }
     throw new Error(String(error));
+  }
+}
+
+// Kullanıcı ID'si değiştiğinde ilişkili kayıtları güncelleme
+async function updateUserRelations(oldId: string, newId: string): Promise<void> {
+  try {
+    console.log(`Kullanıcının ilişkili kayıtları güncelleniyor: ${oldId} -> ${newId}`);
+    
+    // İlk olarak yeni bir kullanıcı oluşturalım (ID dışında tüm bilgileri taşıyarak)
+    const existingUser = await prisma.user.findUnique({
+      where: { id: oldId },
+      include: { profile: true }
+    });
+    
+    if (!existingUser) {
+      throw new Error(`Güncellenecek kullanıcı bulunamadı: ${oldId}`);
+    }
+    
+    // Transaction kullanarak tüm işlemleri atomik olarak yapalım
+    await prisma.$transaction(async (tx) => {
+      // 1. Önce yeni ID ile kullanıcıyı oluştur
+      await tx.user.create({
+        data: {
+          id: newId,
+          email: existingUser.email,
+          role: existingUser.role,
+          firstName: existingUser.firstName,
+          lastName: existingUser.lastName,
+          phone: existingUser.phone,
+          provider: existingUser.provider,
+          createdAt: existingUser.createdAt,
+          updatedAt: new Date(),
+        }
+      });
+      
+      // 2. Kullanıcı profili (varsa) yeni kullanıcıya taşı
+      if (existingUser.profile) {
+        await tx.profile.create({
+          data: {
+            userId: newId,
+            bio: existingUser.profile.bio,
+            availableTimeId: existingUser.profile.availableTimeId,
+            createdAt: existingUser.profile.createdAt,
+            updatedAt: new Date()
+          }
+        });
+      }
+      
+      // 3. Müşteri randevularını güncelle
+      await tx.appointment.updateMany({
+        where: { userId: oldId },
+        data: { userId: newId }
+      });
+      
+      // 4. Çalışan randevularını güncelle
+      await tx.appointment.updateMany({
+        where: { employeeId: oldId },
+        data: { employeeId: newId }
+      });
+      
+      // 5. Değerlendirmeleri güncelle
+      await tx.review.updateMany({
+        where: { userId: oldId },
+        data: { userId: newId }
+      });
+      
+      // 6. Dükkanları güncelle
+      await tx.shop.updateMany({
+        where: { ownerId: oldId },
+        data: { ownerId: newId }
+      });
+      
+      // 7. Son olarak, eski kullanıcıyı sil
+      await tx.profile.deleteMany({
+        where: { userId: oldId }
+      });
+      
+      await tx.user.delete({
+        where: { id: oldId }
+      });
+    });
+    
+    console.log(`Kullanıcının ilişkili kayıtları başarıyla güncellendi: ${oldId} -> ${newId}`);
+  } catch (error) {
+    logPrismaError(`İlişkili kayıtları güncelleme hatası (${oldId} -> ${newId})`, error);
+    throw new Error(`İlişkili kayıtlar güncellenirken hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
